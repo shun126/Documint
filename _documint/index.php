@@ -402,11 +402,10 @@ function get_title_from_markdown($path)
 /**
  * htmlテンプレートにページの内容を反映します
  */
-function template($filename, $title, $body, $sidebar)
+function template($filename, $title, $body, $sidebar_html_file_name)
 {
+	$html = '';
 	$fh = fopen($filename, "rt");
-	$html = "";
-
 	while (($line = fgets($fh)))
 	{
 		if(preg_match('/{{[a-z]+}}/u', $line, $match))
@@ -421,15 +420,17 @@ function template($filename, $title, $body, $sidebar)
 			}
 			else if (strcmp('{{sidebar}}', $match[0]) == 0)
 			{
-				$line = str_replace('{{sidebar}}', $sidebar, $line);
+				if (file_exists($sidebar_html_file_name))
+				{
+					$sidebar_html = file_get_contents($sidebar_html_file_name);
+					$line = str_replace('{{sidebar}}', $sidebar_html, $line);
+				}
 			}
 		}
 
 		$html .= $line;
 	}
-
 	fclose($fh);
-
 	return $html;
 }
 
@@ -479,6 +480,72 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 }
 
 /**
+ * template.htmlを親ディレクトリに向かって検索します
+ */
+function recursive_resolve_template_path($path)
+{
+	$template_file_name = $path . DIRECTORY_SEPARATOR . 'template.html';
+	if (file_exists($template_file_name) == true)
+		return $template_file_name;
+
+	$parent_path = dirname($path);
+	if ($parent_path === $path)
+		return NULL;
+
+	return recursive_resolve_template_path($parent_path);
+}
+
+/**
+ * template.htmlを親ディレクトリに向かって検索します
+ * 無いならデフォルトテンプレートhtmlを採用する
+ */
+function resolve_template_path($path)
+{
+	$template_file_name = recursive_resolve_template_path($path);
+	if ($template_file_name != NULL)
+		return $template_file_name;
+
+	$template_file_name = __DIR__ . DIRECTORY_SEPARATOR . 'template.html';
+	if (file_exists($template_file_name) == true)
+		return $template_file_name;
+
+	return NULL;
+}
+
+/**
+ * sidebar.htmlを親ディレクトリに向かって検索します
+ */
+function recursive_resolve_sidebar_path($path)
+{
+	$sidebar_file_name = $path . DIRECTORY_SEPARATOR . 'sidebar.html';
+	if (file_exists($sidebar_file_name) == true)
+		return $sidebar_file_name;
+
+	$parent_path = dirname($path);
+	if ($parent_path === $path)
+		return NULL;
+
+	return recursive_resolve_sidebar_path($parent_path);
+}
+
+/**
+ * sidebar.htmlを親ディレクトリに向かって検索します
+ * 無いならデフォルトテンプレートhtmlを採用する
+ */
+function resolve_sidebar_path($path)
+{
+	$sidebar_file_name = recursive_resolve_sidebar_path($path);
+	if ($sidebar_file_name != NULL)
+		return $sidebar_file_name;
+
+	$template_file_name = __DIR__ . DIRECTORY_SEPARATOR . 'sidebar.html';
+	if (file_exists($template_file_name) == true)
+		return $template_file_name;
+
+	return NULL;
+}
+
+/**
  * 回収したmarkdown情報からhtmlを生成します
  */
 function build_html_from_markdown($pages)
@@ -492,36 +559,17 @@ function build_html_from_markdown($pages)
 		$out = fopen($outputHtmlPath, 'wt');
 		if ($out)
 		{
-			// ファイルと同じディレクトリにテンプレートhtmlがあるなら採用する
-			$template_file_name = $filepath['dirname'] . DIRECTORY_SEPARATOR . 'template.html';
-			if (file_exists($template_file_name) == false)
-			{
-				// 無いならデフォルトテンプレートhtmlを採用する
-				$template_file_name = __DIR__ . DIRECTORY_SEPARATOR . 'template.html';
-			}
+			// テンプレートhtmlを検索する
+			$template_file_name = resolve_template_path($filepath['dirname']);
 
-			// ファイルと同じディレクトリにサイドバーhtmlがあるなら採用する
-			$sidebar_html = '';
-			$sidebar_html_file_name = $filepath['dirname'] . DIRECTORY_SEPARATOR . 'sidebar.html';
-			if (file_exists($sidebar_html_file_name))
-			{
-				$sidebar_html = file_get_contents($sidebar_html_file_name);
-			}
-			else
-			{
-				// 無いならデフォルトサイドバーhtmlを採用する
-				$sidebar_html_file_name = __DIR__ . DIRECTORY_SEPARATOR . 'sidebar.html';
-				if (file_exists($sidebar_html_file_name))
-				{
-					$sidebar_html = file_get_contents($sidebar_html_file_name);
-				}
-			}
+			// サイドバーhtmlを検索する
+			$sidebar_html_file_name = resolve_sidebar_path($filepath['dirname']);
 
 			// markdownからhtmlへ変換
 			$html = parse_md($page->getFilePath(), $pages);
 
 			// html templateを適用
-			$html = template($template_file_name, $page->getTitle(), $html, $sidebar_html);
+			$html = template($template_file_name, $page->getTitle(), $html, $sidebar_html_file_name);
 
 			// htmlをファイルへ出力
 			if (fwrite($out, $html) === false)
@@ -543,12 +591,6 @@ function build_html_from_markdown($pages)
 main
 */
 try {
-	$template_file_name = __DIR__ . DIRECTORY_SEPARATOR . 'template.html';
-	if (file_exists($template_file_name) == false)
-	{
-		throw new RuntimeException("html template file not found. '" . $template_file_name . "'");
-	}
-
 	// ファイルのベースパスを取得
 	$fileBasePath = realpath(__DIR__ . DIRECTORY_SEPARATOR . '..');
 
@@ -600,15 +642,21 @@ try {
 		TODO: テンプレートの検索ルールに従ってください
 		サイドバーに対応してください
 		*/
+		// テンプレートhtmlを検索する
+		$template_file_name = resolve_template_path($fileBasePath);
+
+		// サイドバーhtmlを検索する
+		$sidebar_html_file_name = resolve_sidebar_path($filepath['dirname']);
+
 		// html templateを適用
-		$template_file_name = __DIR__ . DIRECTORY_SEPARATOR . 'template.html';
-		$html = template($template_file_name, 'ページ一覧', $html, '');
+		$html = template($template_file_name, 'ページ一覧', $html, $sidebar_html_file_name);
 
 		// write to html file
 		if (fwrite($out, $html) === false)
 		{
 			throw new RuntimeException("Cannot write to file. '" . $fileBasePath . "'");
 		}
+		
 		fclose($out);
 	}
 
