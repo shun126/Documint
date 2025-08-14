@@ -453,7 +453,7 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 			if (is_dir($path))
 			{
 				// ディレクトリ名の先頭が_で始まっているなら何もしない
-				if ($file[0] !== '_')
+				if ($file[0] !== '_' && $file !== 'rs-vendor')
 				{
 					gather_markdown_info_in_directory($pages, $networkBasePath, $fileBasePath, $dir . DIRECTORY_SEPARATOR . $file);
 				}
@@ -587,6 +587,54 @@ function build_html_from_markdown($pages)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+/**
+ * ディレクトリをオープンしてhtmlのurlを回収します
+ */
+function gather_html_file_in_directory(&$urls, $rootUrl, $fileBasePath, $dir)
+{
+	$current_dir = $fileBasePath . $dir . DIRECTORY_SEPARATOR;
+
+	if ($dh = opendir($current_dir))
+	{
+		while (($file = readdir($dh)) !== false)
+		{
+			if (strcmp($file, '.') == 0 || strcmp($file, '..') == 0)
+				continue;
+
+			$path = $current_dir . $file;
+			if (is_dir($path))
+			{
+				if ($file !== '_sub_domain' && $file !== 'rs-vendor')
+				{
+					gather_html_file_in_directory($urls, $rootUrl, $fileBasePath, $dir . DIRECTORY_SEPARATOR . $file);
+				}
+			}
+			else
+			{
+				// TODO: template.htmlとsidebar.htmlをリテラル化して下さい
+				if ($file !== "template.html" && $file !== "sidebar.html")
+				{
+					// .htmlファイルを記録
+					$path_info = pathinfo($path);
+					$extension = $path_info['extension'];
+					if (strcmp($extension, 'html') == 0 || strcmp($extension, 'htm') == 0)
+					{
+						$network_path = $rootUrl . $dir . '/' . $path_info['basename'];
+						if (DIRECTORY_SEPARATOR === "\\")
+						{
+							$network_path = str_replace(DIRECTORY_SEPARATOR, "/", $network_path);
+						}
+						$urls[] = $network_path;
+					}
+				}
+			}
+		}
+
+		closedir($dh);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 /*
 main
 */
@@ -600,7 +648,8 @@ try {
 		$scheme = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
 		$host = $_SERVER['HTTP_HOST'];
 		$requestUri = $_SERVER['REQUEST_URI'];
-		$currentUrl = $scheme . "://" . $host . $requestUri;
+		$rootUrl = $scheme . "://" . $host;
+		$currentUrl = $rootUrl . $requestUri;
 
 		// パス部分を分解
 		$path = parse_url($currentUrl, PHP_URL_PATH);
@@ -654,10 +703,42 @@ try {
 		// write to html file
 		if (fwrite($out, $html) === false)
 		{
-			throw new RuntimeException("Cannot write to file. '" . $fileBasePath . "'");
+			throw new RuntimeException("Cannot write to file. '" . $fileBasePath . "/page_list.html'");
 		}
 		
 		fclose($out);
+	}
+
+	// htmlページを回収
+	$urls = [];
+	gather_html_file_in_directory($urls, $rootUrl, $fileBasePath, '');
+
+	usort($urls, function($a, $b)
+	{
+		return strlen($a) - strlen($b);
+	});
+
+	$sitemap  = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+	$sitemap .= "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
+	foreach ($urls as $url)
+	{
+		$sitemap .= "<url>";
+		$sitemap .= "<loc>" . $url . "</loc>";
+		$sitemap .= "</url>";
+		$sitemap .= "\n";
+	}
+	$sitemap .= "</urlset>";
+	unset($urls);
+
+	// ページ一覧ページを生成
+	$out = fopen($fileBasePath . '/sitemap.xml', 'wt');
+	if ($out)
+	{
+		if (fwrite($out, $sitemap) === false)
+		{
+			throw new RuntimeException("Cannot write to file. '" . $fileBasePath . "/sitemap.xml'");
+		}
+		echo "generate sitemap.xml</br>";
 	}
 
 } catch(Exception $e) {
