@@ -89,12 +89,14 @@ class PageInfomation
 	private $title;
 	private $networkPath;
 	private $filePath;
+	private $categories;
 
-	public function __construct($title, $networkPath, $filePath)
+	public function __construct($title, $networkPath, $filePath, $categories)
 	{
 		$this->title = $title;
 		$this->networkPath = $networkPath;
 		$this->filePath = $filePath;
+		$this->categories = $categories;
 	}
 
 	public function getTitle()
@@ -110,6 +112,11 @@ class PageInfomation
 	public function getFilePath()
 	{
 		return $this->filePath;
+	}
+
+	public function getCategories()
+	{
+		return $this->categories;
 	}
 };
 
@@ -288,6 +295,18 @@ function parse_md($path, $pages)
 			$body .= "\n";
 			unset($page);
 		}
+		else if (preg_match('/^\{\{category_list(?:\s+(.+))?\}\}$/u', $token, $match))
+		{
+			$filter = isset($match[1]) ? trim($match[1]) : '';
+			if ($filter === '' || strpos($filter, ',') === false)
+			{
+				$body .= build_category_list_markdown($pages, $filter);
+			}
+		}
+		else if (preg_match('/^\{\{category\s+(.+)\}\}$/u', $token))
+		{
+			// categoryはメタ情報なので出力しない
+		}
 		else if (strcmp($token, "```source") == 0)
 		{
 			$head .= markdown_to_html($body);
@@ -399,6 +418,98 @@ function get_title_from_markdown($path)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+/*
+Markdownファイルからカテゴリを取得
+*/
+function get_categories_from_markdown($path)
+{
+	$markdown = fopen($path, 'rt');
+	if ($markdown === false)
+	{
+		throw new RuntimeException("Markdown file not found. '" . $path . "'");
+	}
+
+	$categories = [];
+	while (($line = fgets($markdown)))
+	{
+		$line = trim($line);
+		if (preg_match('/^\{\{category\s+(.+)\}\}$/u', $line, $match))
+		{
+			$parts = explode(',', $match[1]);
+			foreach ($parts as $part)
+			{
+				$name = trim($part);
+				if ($name !== '')
+				{
+					$categories[$name] = true;
+				}
+			}
+		}
+	}
+
+	fclose($markdown);
+	return array_keys($categories);
+}
+
+/*
+カテゴリ一覧をMarkdownで生成
+*/
+function build_category_list_markdown($pages, $filter)
+{
+	$body = '';
+	if ($filter !== NULL && $filter !== '')
+	{
+		$body .= '<h2>' . $filter . '</h2>' . "\n";
+		foreach ($pages as $page)
+		{
+			$cats = $page->getCategories();
+			if (empty($cats))
+			{
+				continue;
+			}
+
+			if (in_array($filter, $cats, true))
+			{
+				$body .= "* [" . $page->getTitle() . "](" . $page->getNetworkPath() . ")\n";
+			}
+		}
+		$body .= "\n";
+		return $body;
+	}
+
+	$categories = [];
+	foreach ($pages as $page)
+	{
+		$cats = $page->getCategories();
+		if (empty($cats))
+		{
+			continue;
+		}
+
+		foreach ($cats as $cat)
+		{
+			if (!array_key_exists($cat, $categories))
+			{
+				$categories[$cat] = [];
+			}
+			$categories[$cat][] = $page;
+		}
+	}
+
+	foreach ($categories as $category => $category_pages)
+	{
+		$body .= '<h2>' . $category . '</h2>' . "\n";
+		foreach ($category_pages as $page)
+		{
+			$body .= "* [" . $page->getTitle() . "](" . $page->getNetworkPath() . ")\n";
+		}
+		$body .= "\n";
+	}
+
+	return $body;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 /**
  * htmlテンプレートにページの内容を反映します
  */
@@ -470,7 +581,8 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 						$network_path = str_replace(DIRECTORY_SEPARATOR, "/", $network_path);
 					}
 					$title = get_title_from_markdown($path);
-					$pages[] = new PageInfomation($title, $network_path, $path);
+					$categories = get_categories_from_markdown($path);
+					$pages[] = new PageInfomation($title, $network_path, $path, $categories);
 				}
 			}
 		}
