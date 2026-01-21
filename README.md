@@ -16,6 +16,10 @@ MarkdownからスッキリとしたWebページをサクッと発行
 - `{{category_list カテゴリ名}}` は指定カテゴリのページだけを生成。
 - `{{category_list カテゴリ名1,カテゴリ名2}}` のような複数指定は無視。
 
+## サイドバー
+- サイドバーは `sidebar.md` を親ディレクトリに向かって探索して使用します。
+- `sidebar.md` は Markdown として処理され、`template.html` 内の `{{sidebar}}` に埋め込まれます。
+
 ## Markdown内で使用できる機能
 `{{{ filename }}}` と記述すると`filename`で指定したファイルをマージします。
 拡張子が`.pu`の場合はPlantUMLとして処理
