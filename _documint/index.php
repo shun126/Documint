@@ -1,3 +1,25 @@
+<html lang="ja">
+<head>
+	<meta charset="UTF-8" />
+	<meta http-equiv="x-ua-compatible" content="IE=9">
+	<meta http-equiv="x-ua-compatible" content="IE=EmulateIE9">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Documint</title>
+
+	<!-- stylesheet (dataTables) -->
+	<link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/> 
+
+	<!-- stylesheet (bootstrap) -->
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+
+	<!-- stylesheet (bootswatch) -->
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootswatch/5.3.3/flatly/bootstrap.min.css" integrity="sha512-qoT4KwnRpAQ9uczPsw7GunsNmhRnYwSlE2KRCUPRQHSkDuLulCtDXuC2P/P6oqr3M5hoGagUG9pgHDPkD2zCDA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+	<div class="container">
+		<div class="row">
+			<main role="main" class="col-12">
+
 <?php
 /**
  * markdownファイルからhtmlファイルを生成します
@@ -513,7 +535,7 @@ function build_category_list_markdown($pages, $filter)
 /**
  * htmlテンプレートにページの内容を反映します
  */
-function template($filename, $title, $body, $sidebar_html_file_name)
+function template($filename, $title, $body, $sidebar_html)
 {
 	$html = '';
 	$fh = fopen($filename, "rt");
@@ -531,11 +553,7 @@ function template($filename, $title, $body, $sidebar_html_file_name)
 			}
 			else if (strcmp('{{sidebar}}', $match[0]) == 0)
 			{
-				if (file_exists($sidebar_html_file_name))
-				{
-					$sidebar_html = file_get_contents($sidebar_html_file_name);
-					$line = str_replace('{{sidebar}}', $sidebar_html, $line);
-				}
+				$line = str_replace('{{sidebar}}', $sidebar_html, $line);
 			}
 		}
 
@@ -625,11 +643,11 @@ function resolve_template_path($path)
 }
 
 /**
- * sidebar.htmlを親ディレクトリに向かって検索します
+ * sidebar.mdを親ディレクトリに向かって検索します
  */
 function recursive_resolve_sidebar_path($path)
 {
-	$sidebar_file_name = $path . DIRECTORY_SEPARATOR . 'sidebar.html';
+	$sidebar_file_name = $path . DIRECTORY_SEPARATOR . 'sidebar.md';
 	if (file_exists($sidebar_file_name) == true)
 		return $sidebar_file_name;
 
@@ -641,8 +659,7 @@ function recursive_resolve_sidebar_path($path)
 }
 
 /**
- * sidebar.htmlを親ディレクトリに向かって検索します
- * 無いならデフォルトテンプレートhtmlを採用する
+ * sidebar.mdを親ディレクトリに向かって検索します
  */
 function resolve_sidebar_path($path)
 {
@@ -650,9 +667,9 @@ function resolve_sidebar_path($path)
 	if ($sidebar_file_name != NULL)
 		return $sidebar_file_name;
 
-	$template_file_name = __DIR__ . DIRECTORY_SEPARATOR . 'sidebar.html';
-	if (file_exists($template_file_name) == true)
-		return $template_file_name;
+	$sidebar_file_name = __DIR__ . DIRECTORY_SEPARATOR . 'sidebar.md';
+	if (file_exists($sidebar_file_name ) == true)
+		return $sidebar_file_name ;
 
 	return NULL;
 }
@@ -674,14 +691,19 @@ function build_html_from_markdown($pages)
 			// テンプレートhtmlを検索する
 			$template_file_name = resolve_template_path($filepath['dirname']);
 
-			// サイドバーhtmlを検索する
-			$sidebar_html_file_name = resolve_sidebar_path($filepath['dirname']);
+			// サイドバーmarkdownを検索する
+			$sidebar_markdown_file_name = resolve_sidebar_path($filepath['dirname']);
 
 			// markdownからhtmlへ変換
 			$html = parse_md($page->getFilePath(), $pages);
 
 			// html templateを適用
-			$html = template($template_file_name, $page->getTitle(), $html, $sidebar_html_file_name);
+			$sidebar_html = '';
+			if ($sidebar_markdown_file_name != NULL)
+			{
+				$sidebar_html = parse_md($sidebar_markdown_file_name, $pages);
+			}
+			$html = template($template_file_name, $page->getTitle(), $html, $sidebar_html);
 
 			// htmlをファイルへ出力
 			if (fwrite($out, $html) === false)
@@ -723,8 +745,7 @@ function gather_html_file_in_directory(&$urls, $rootUrl, $fileBasePath, $dir)
 			}
 			else
 			{
-				// TODO: template.htmlとsidebar.htmlをリテラル化して下さい
-				if ($file !== "template.html" && $file !== "sidebar.html")
+				if ($file !== "template.html" && $file !== "sidebar.md")
 				{
 					// .htmlファイルを記録
 					$path_info = pathinfo($path);
@@ -799,18 +820,19 @@ try {
 		}
 		unset($page);
 
-		/*
-		TODO: テンプレートの検索ルールに従ってください
-		サイドバーに対応してください
-		*/
 		// テンプレートhtmlを検索する
 		$template_file_name = resolve_template_path($fileBasePath);
 
-		// サイドバーhtmlを検索する
-		$sidebar_html_file_name = resolve_sidebar_path($filepath['dirname']);
+		// サイドバーmarkdownを検索する
+		$sidebar_markdown_file_name = resolve_sidebar_path($fileBasePath);
 
 		// html templateを適用
-		$html = template($template_file_name, 'ページ一覧', $html, $sidebar_html_file_name);
+		$sidebar_html = '';
+		if ($sidebar_markdown_file_name != NULL)
+		{
+			$sidebar_html = parse_md($sidebar_markdown_file_name, $pages);
+		}
+		$html = template($template_file_name, 'ページ一覧', $html, $sidebar_html);
 
 		// write to html file
 		if (fwrite($out, $html) === false)
@@ -858,3 +880,9 @@ try {
 	echo($e->getMessage());
 }
 ?>
+
+			</main>
+		</div>
+	</div>
+	</body>
+</html>
