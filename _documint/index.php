@@ -6,16 +6,18 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Documint</title>
 
-	<!-- stylesheet (dataTables) -->
-	<link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/> 
-
 	<!-- stylesheet (bootstrap) -->
 	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
 
 	<!-- stylesheet (bootswatch) -->
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootswatch/5.3.3/flatly/bootstrap.min.css" integrity="sha512-qoT4KwnRpAQ9uczPsw7GunsNmhRnYwSlE2KRCUPRQHSkDuLulCtDXuC2P/P6oqr3M5hoGagUG9pgHDPkD2zCDA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootswatch/5.3.5/minty/bootstrap.min.css" integrity="sha512-6238ldGQpzSPMNT495xiCIginN/nvtvE8ejAhJ9FWqhaPq6GhkRNLm2OnA1WA9KJJ7F4ZzJ0y5gLjdHqFBE9Mg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body>
+	<nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
+		<div class="container">
+			<h1 class="navbar-brand">Documint</h1>
+		</div>
+	</nav>
 	<div class="container">
 		<div class="row">
 			<main role="main" class="col-12">
@@ -41,18 +43,21 @@ class Markdown extends Parsedown
 		if (isset($Inline))
 		{
 			// ファイル名を分解
-			$path = pathinfo($Inline["element"]["attributes"]['src']);
-			if (array_key_exists('extension', $path) && strcasecmp($path['extension'], "mp4") == 0)
+			$extension = pathinfo($Inline["element"]["attributes"]['src'], PATHINFO_EXTENSION);
+			if (is_string($extension))
 			{
-				// ビデオ
-				$Inline["element"]["name"] = "video";
-				$Inline["element"]["attributes"] += array('controls'=>'');
-				$Inline["element"]["attributes"] += array('class'=>'embed-responsive embed-responsive-16by9');
-			}
-			else
-			{
-				// 画像
-				$Inline["element"]["attributes"] += array('class'=>'img-fluid');
+				if (strcasecmp($extension, "mp4") == 0)
+				{
+					// ビデオ
+					$Inline["element"]["name"] = "video";
+					$Inline["element"]["attributes"] += array('controls'=>'');
+					$Inline["element"]["attributes"] += array('class'=>'embed-responsive embed-responsive-16by9');
+				}
+				else
+				{
+					// 画像
+					$Inline["element"]["attributes"] += array('class'=>'img-fluid');
+				}
 			}
 		}
 		return $Inline;
@@ -61,7 +66,7 @@ class Markdown extends Parsedown
 	/**
 	 * テーブルのオーバーライド関数
 	 */
-	protected function blockTable($Line, array $Block = null)
+	protected function blockTable($Line, ?array $Block = null)
 	{
 		$Block = parent::blockTable($Line, $Block);
 		if ($Block)
@@ -83,7 +88,7 @@ class Markdown extends Parsedown
 		$Excerpt = parent::inlineLink($Excerpt);
 		if ($Excerpt)
 		{
-			if (strcmp($Excerpt["element"]["name"], "a") == 0)
+			if ($Excerpt["element"]["name"] === "a")
 			{
 				$url = parse_url($Excerpt["element"]['attributes']['href']);
 				if (array_key_exists('path', $url) && strpos($url['path'], '.md') !== false)
@@ -232,7 +237,7 @@ function plantuml($file, $endtag)
 	while (($line = fgets($file)))
 	{
 		$token = trim($line);
-		if (strcmp($token, $endtag) == 0)
+		if ($token === $endtag)
 			break;
 
 		$code .= $line;
@@ -254,7 +259,7 @@ function mermaid($file)
 	while ($line = fgets($file))
 	{
 		$token = trim($line);
-		if (strcmp($token, '```') == 0)
+		if ($token === '```')
 			break;
 
 		$code .= $line;
@@ -283,7 +288,7 @@ function source($file)
 	while (($line = fgets($file)))
 	{
 		$token = trim($line);
-		if (strcmp($token, "```") == 0)
+		if ($token === "```")
 			break;
 
 		$code .= $line;
@@ -308,7 +313,7 @@ function parse_md($path, $pages)
 	while (($line = fgets($markdown)))
 	{
 		$token = trim($line);
-		if (strcmp($token, '{{page_list}}') == 0)
+		if ($token === '{{page_list}}')
 		{
 			foreach ($pages as $page)
 			{
@@ -329,21 +334,21 @@ function parse_md($path, $pages)
 		{
 			// categoryはメタ情報なので出力しない
 		}
-		else if (strcmp($token, "```source") == 0)
+		else if ($token === "```source")
 		{
 			$head .= markdown_to_html($body);
 			$head .= source($markdown);
 			$body = '';
 		}
-		else if (strcmp($token, "```mermaid") == 0)
+		else if ($token === "```mermaid")
 		{
 			$body .= mermaid($markdown);
 		}
-		else if (strcmp($token, "```plantuml") == 0)
+		else if ($token === "```plantuml")
 		{
 			$body .= plantuml($markdown, "```");
 		}
-		else if (strcmp($token, "@startuml") == 0)
+		else if ($token === "@startuml")
 		{
 			$body .= plantuml($markdown, "@enduml");
 		}
@@ -362,33 +367,37 @@ function parse_md($path, $pages)
 				$filename = trim(substr($match[0], 2, $length));
 
 				// ファイル名を分解
-				$filepath = pathinfo($filename);
-				$extension = $filepath['extension'];
+				$extension = pathinfo($filename, PATHINFO_EXTENSION);
+				if (is_string($extension))
+					$extension = "";
 
 				// ファイル名を分解
-				$directory = pathinfo($path)['dirname'] . DIRECTORY_SEPARATOR;
+				$directory = pathinfo($path, PATHINFO_DIRNAME) . DIRECTORY_SEPARATOR;
+				$contents_path = $directory . $filename;
+				if (is_file($contents_path))
+				{
+					$inner_contents = file_get_contents($directory . $filename);
+					if ($inner_contents == false)
+						throw new RuntimeException("file open filed. '" . $directory . $filename . "'");
 
-				$inner_contents = file_get_contents($directory . $filename);
-				if ($inner_contents == false)
-					throw new RuntimeException("file open filed. '" . $directory . $filename . "'");
-
-				// html
-				if (strcmp($extension, 'html') == 0 || strcmp($extension, 'htm') == 0)
-				{
-					$head .= markdown_to_html($body);
-					$head .= $inner_contents;
-					$body = '';
-				}
-				// plantuml
-				else if (strcmp($extension, 'pu') == 0)
-				{
-					$encode = encodep($inner_contents);					
-					$body .= '![uml](http://www.plantuml.com/plantuml/svg/' . $encode . ')' . PHP_EOL;
-				}
-				// markdown
-				else
-				{
-					$body .= $inner_contents;
+					// html
+					if ($extension === 'html' || $extension === 'htm')
+					{
+						$head .= markdown_to_html($body);
+						$head .= $inner_contents;
+						$body = '';
+					}
+					// plantuml
+					else if ($extension === 'pu')
+					{
+						$encode = encodep($inner_contents);					
+						$body .= '![uml](http://www.plantuml.com/plantuml/svg/' . $encode . ')' . PHP_EOL;
+					}
+					// markdown
+					else
+					{
+						$body .= $inner_contents;
+					}
 				}
 			}
 			else
@@ -417,8 +426,7 @@ function get_title_from_markdown($path)
 		throw new RuntimeException("Markdown file not found. '" . $path . "'");
 	}
 
-	$pathinfo = pathinfo($path);
-	$title = $pathinfo['filename'];
+	$title = pathinfo($path, PATHINFO_FILENAME);
 
 	while (($line = fgets($markdown)))
 	{
@@ -543,15 +551,15 @@ function template($filename, $title, $body, $sidebar_html)
 	{
 		if(preg_match('/{{[a-z]+}}/u', $line, $match))
 		{
-			if (strcmp('{{title}}', $match[0]) == 0)
+			if ('{{title}}' === $match[0])
 			{
 				$line = str_replace('{{title}}', $title, $line);
 			}
-			else if (strcmp('{{body}}', $match[0]) == 0)
+			else if ('{{body}}' === $match[0])
 			{
 				$line = str_replace('{{body}}', $body, $line);
 			}
-			else if (strcmp('{{sidebar}}', $match[0]) == 0)
+			else if ('{{sidebar}}' === $match[0])
 			{
 				$line = str_replace('{{sidebar}}', $sidebar_html, $line);
 			}
@@ -575,14 +583,21 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 	{
 		while (($file = readdir($dh)) !== false)
 		{
-			if (strcmp($file, '.') == 0 || strcmp($file, '..') == 0)
+			if ($file === '.' || $file === '..')
 				continue;
 
 			$path = $current_dir . $file;
 			if (is_dir($path))
 			{
-				// ディレクトリ名の先頭が_で始まっているなら何もしない
-				if ($file[0] !== '_' && $file !== 'rs-vendor')
+				/*
+				 * ディレクトリ名の先頭が.または_で始まっている
+				 * またはrs-vendorなら何もしない
+				 */
+				if (
+					$file !== '' &&
+					$file !== 'rs-vendor' &&
+					$file[0] !== '.' &&
+					$file[0] !== '_' )
 				{
 					gather_markdown_info_in_directory($pages, $networkBasePath, $fileBasePath, $dir . DIRECTORY_SEPARATOR . $file);
 				}
@@ -591,7 +606,7 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 			{
 				// .mdファイルを記録
 				$path_info = pathinfo($path);
-				if (strcmp($path_info['extension'], 'md') == 0)
+				if (array_key_exists('extension', $path_info) && $path_info['extension'] === 'md')
 				{
 					$network_path = $networkBasePath . $dir . '/' . $path_info['filename'] . '.html';
 					if (DIRECTORY_SEPARATOR === "\\")
@@ -679,9 +694,18 @@ function resolve_sidebar_path($path)
  */
 function build_html_from_markdown($pages)
 {
+	echo '<table class="table table-hover" width="100%">';
+
+	echo '<thead>';
+	echo '<th scope="col">Title</th><th scope="col">Network Path</th><th scope="col">File Path</th>';
+	echo '</thead>';
+	echo '<tbody>';
+
 	foreach ($pages as $page)
 	{
-		echo "generate: " . $page->getTitle() . " | " . $page->getNetworkPath() . " | " . $page->getFilePath() . "</br>";
+		echo "<tr>";
+		echo "<td>" . $page->getTitle() . "</td><td>" . $page->getNetworkPath() . "</td><td>" . $page->getFilePath() . "</td>";
+		echo "</tr>";
 
 		$filepath = pathinfo($page->getFilePath());
 		$outputHtmlPath = $filepath['dirname'] . DIRECTORY_SEPARATOR . $filepath['filename'] . '.html';
@@ -718,6 +742,9 @@ function build_html_from_markdown($pages)
 			throw new RuntimeException("Cannot open to file. '" . $outputHtmlPath . "'");
 		}
 	}
+
+	echo '</tbody>';
+	echo "</table>";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -732,13 +759,21 @@ function gather_html_file_in_directory(&$urls, $rootUrl, $fileBasePath, $dir)
 	{
 		while (($file = readdir($dh)) !== false)
 		{
-			if (strcmp($file, '.') == 0 || strcmp($file, '..') == 0)
+			if ($file === '.' || $file === '..')
 				continue;
 
 			$path = $current_dir . $file;
 			if (is_dir($path))
 			{
-				if ($file !== '_sub_domain' && $file !== 'rs-vendor')
+				/*
+				 * ディレクトリ名の先頭が.または_で始まっている
+				 * またはrs-vendorなら何もしない
+				 */
+				if (
+					$file !== '' &&
+					$file !== 'rs-vendor' &&
+					$file[0] !== '.' &&
+					$file[0] !== '_' )
 				{
 					gather_html_file_in_directory($urls, $rootUrl, $fileBasePath, $dir . DIRECTORY_SEPARATOR . $file);
 				}
@@ -749,15 +784,18 @@ function gather_html_file_in_directory(&$urls, $rootUrl, $fileBasePath, $dir)
 				{
 					// .htmlファイルを記録
 					$path_info = pathinfo($path);
-					$extension = $path_info['extension'];
-					if (strcmp($extension, 'html') == 0 || strcmp($extension, 'htm') == 0)
+					if (array_key_exists('extension', $path_info))
 					{
-						$network_path = $rootUrl . $dir . '/' . $path_info['basename'];
-						if (DIRECTORY_SEPARATOR === "\\")
+						$extension = $path_info['extension'];
+						if ($extension === 'html' || $extension === 'htm')
 						{
-							$network_path = str_replace(DIRECTORY_SEPARATOR, "/", $network_path);
+							$network_path = $rootUrl . $dir . '/' . $path_info['basename'];
+							if (DIRECTORY_SEPARATOR === "\\")
+							{
+								$network_path = str_replace(DIRECTORY_SEPARATOR, "/", $network_path);
+							}
+							$urls[] = $network_path;
 						}
-						$urls[] = $network_path;
 					}
 				}
 			}
@@ -839,6 +877,7 @@ try {
 		{
 			throw new RuntimeException("Cannot write to file. '" . $fileBasePath . "/page_list.html'");
 		}
+		echo "generate page_list.html</br>";
 		
 		fclose($out);
 	}
