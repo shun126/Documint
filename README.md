@@ -21,19 +21,20 @@ MarkdownからスッキリとしたWebページをサクッと発行
 - `sidebar.md` は Markdown として処理され、`template.html` 内の `{{sidebar}}` に埋め込まれます。
 
 ## Markdown内で使用できる機能
-`{{{ filename }}}` と記述すると`filename`で指定したファイルをマージします。
-拡張子が`.pu`の場合はPlantUMLとして処理
-拡張子が`.html`の場合はHTMLとして処理
-それ以外の拡張子ではMarkdownとしてマージします。
+` {{{ filename }}} ` と記述すると`filename`で指定したファイルをマージします。
+* 拡張子が`.pu`の場合はPlantUMLとして処理
+* 拡張子が`.html`の場合はHTMLとして処理
+* それ以外の拡張子ではMarkdownとしてマージします。
 
-"```source"
-"```mermaid"
-"```plantuml"
-`{{page_list}}`
-"@startuml"
+* ` ```source `
+* ` ```mermaid `
+* ` ```plantuml `
+* ` {{page_list}} `
+* ` @startuml `
 
 # テスト
 
+## mermaid
 ```mermaid
 graph TB
   Start([Start])-->B{if a > b}
@@ -44,6 +45,7 @@ graph TB
   IFB-->End([End])
 ```
 
+## plantuml
 ```plantuml
 Interface InterfaceA {
 }
@@ -54,6 +56,7 @@ class ClassA {
 InterfaceA <|.. ClassA
 ```
 
+## Code
 ```cpp
 int main(int argc, char* argv[])
 {
