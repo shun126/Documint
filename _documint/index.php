@@ -230,12 +230,13 @@ function encode64($c)
 /**
  * PlantUMLにエンコード
  */
-function plantuml($file, $endtag)
+function plantuml($file, $endtag, &$lineNumber)
 {
 	$code = '';
 	
 	while (($line = fgets($file)))
 	{
+		$lineNumber += 1;
 		$token = trim($line);
 		if ($token === $endtag)
 			break;
@@ -252,12 +253,13 @@ function plantuml($file, $endtag)
 /**
  * Mermaidにエンコード
  */
-function mermaid($file)
+function mermaid($file, &$lineNumber)
 {
 	$code = '';
 	
 	while ($line = fgets($file))
 	{
+		$lineNumber += 1;
 		$token = trim($line);
 		if ($token === '```')
 			break;
@@ -279,14 +281,69 @@ function markdown_to_html($source)
 	return $markdown->text($source);
 }
 
+$parseWarnings = [];
+
+/**
+ * 解析時の警告を記録します
+ */
+function register_parse_warning($path, $lineNumber, $message)
+{
+	global $parseWarnings;
+
+	$key = $path . ':' . $lineNumber . ':' . $message;
+	if (array_key_exists($key, $parseWarnings))
+		return;
+
+	$parseWarnings[$key] = [
+		'path' => $path,
+		'line' => $lineNumber,
+		'message' => $message,
+	];
+}
+
+/**
+ * 解析時の警告をHTMLとして出力します
+ */
+function render_parse_warnings()
+{
+	global $parseWarnings;
+
+	if (count($parseWarnings) === 0)
+		return '';
+
+	$html = '<div class="alert alert-warning" role="alert">';
+	$html .= '<strong>Warnings</strong>';
+	$html .= '<ul class="mb-0">';
+	foreach ($parseWarnings as $warning)
+	{
+		$html .= '<li>';
+		$html .= htmlspecialchars($warning['path'], ENT_QUOTES, 'UTF-8');
+		$html .= ':' . $warning['line'] . ' ';
+		$html .= htmlspecialchars($warning['message'], ENT_QUOTES, 'UTF-8');
+		$html .= '</li>';
+	}
+	$html .= '</ul>';
+	$html .= '</div>';
+	return $html;
+}
+
+/**
+ * 生HTMLらしい行か判定します
+ */
+function looks_like_raw_html($token)
+{
+	return preg_match('/^(?:<!--|<!DOCTYPE\b|<!\[CDATA\[|<\?|<\/?[a-zA-Z][\w:-]*(?:\s|>|\/))/iu', $token) === 1;
+}
+
 /*
 */
-function source($file)
+function source($file, &$lineNumber)
 {
 	$code = '';
 	
 	while (($line = fgets($file)))
 	{
+		$lineNumber += 1;
 		$token = trim($line);
 		if ($token === "```")
 			break;
@@ -310,10 +367,60 @@ function parse_md($path, $pages)
 
 	$head = '';
 	$body = '';
+	$html = '';
+	$lineNumber = 0;
+	$htmlBlockStartLine = 0;
+	$inHtmlBlock = false;
+	$inFencedCodeBlock = false;
 	while (($line = fgets($markdown)))
 	{
+		$lineNumber += 1;
 		$token = trim($line);
-		if ($token === '{{page_list}}')
+		if ($inHtmlBlock)
+		{
+			if ($token === '{{/html}}')
+			{
+				$head .= $html;
+				$html = '';
+				$inHtmlBlock = false;
+			}
+			else if ($token === '{{html}}')
+			{
+				fclose($markdown);
+				throw new RuntimeException("Nested {{html}} block is not supported. '" . $path . "' line " . $lineNumber);
+			}
+			else
+			{
+				$html .= $line;
+			}
+		}
+		else if ($inFencedCodeBlock)
+		{
+			$body .= $line;
+			if ($token === '```')
+			{
+				$inFencedCodeBlock = false;
+			}
+		}
+		else if ($token === '{{html}}')
+		{
+			$head .= markdown_to_html($body);
+			$body = '';
+			$html = '';
+			$htmlBlockStartLine = $lineNumber;
+			$inHtmlBlock = true;
+		}
+		else if ($token === '{{/html}}')
+		{
+			fclose($markdown);
+			throw new RuntimeException("Unexpected {{/html}} tag. '" . $path . "' line " . $lineNumber);
+		}
+		else if (preg_match('/^\{\{html/u', $token))
+		{
+			fclose($markdown);
+			throw new RuntimeException("Unsupported html tag syntax. Use {{html}} ... {{/html}}. '" . $path . "' line " . $lineNumber);
+		}
+		else if ($token === '{{page_list}}')
 		{
 			foreach ($pages as $page)
 			{
@@ -337,26 +444,31 @@ function parse_md($path, $pages)
 		else if ($token === "```source")
 		{
 			$head .= markdown_to_html($body);
-			$head .= source($markdown);
+			$head .= source($markdown, $lineNumber);
 			$body = '';
 		}
 		else if ($token === "```mermaid")
 		{
 			$head .= markdown_to_html($body);
-			$head .= mermaid($markdown);
+			$head .= mermaid($markdown, $lineNumber);
 			$body = '';
 		}
 		else if ($token === "```plantuml")
 		{
 			$head .= markdown_to_html($body);
-			$head .= plantuml($markdown, "```");
+			$head .= plantuml($markdown, "```", $lineNumber);
 			$body = '';
 		}
 		else if ($token === "@startuml")
 		{
 			$head .= markdown_to_html($body);
-			$head .= plantuml($markdown, "@enduml");
+			$head .= plantuml($markdown, "@enduml", $lineNumber);
 			$body = '';
+		}
+		else if (preg_match('/^```/', $token))
+		{
+			$inFencedCodeBlock = true;
+			$body .= $line;
 		}
 		else
 		{
@@ -414,6 +526,11 @@ function parse_md($path, $pages)
 	}
 
 	fclose($markdown);
+
+	if ($inHtmlBlock)
+	{
+		throw new RuntimeException("Unclosed {{html}} block. '" . $path . "' line " . $htmlBlockStartLine);
+	}
 
 	return $head . markdown_to_html($body);
 }
@@ -888,6 +1005,8 @@ try {
 		
 		fclose($out);
 	}
+
+	echo render_parse_warnings();
 
 	// htmlページを回収
 	$urls = [];
