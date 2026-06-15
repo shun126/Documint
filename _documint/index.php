@@ -541,9 +541,9 @@ function parse_md($path, $pages)
 
 ////////////////////////////////////////////////////////////////////////////////
 /*
-Markdownファイル内の最初の`#`をタイトルとして取得します
+Markdownファイル内の`{{title ...}}`または最初の`#`をタイトルとして取得します
 ¥param	$path	Markdownファイルのパス
-¥return	マークダウン内の最初の`#`
+¥return	`{{title ...}}`、マークダウン内の最初の`#`、またはファイル名
 */
 function get_title_from_markdown($path)
 {
@@ -554,6 +554,7 @@ function get_title_from_markdown($path)
 	}
 
 	$title = pathinfo($path, PATHINFO_FILENAME);
+	$heading_title = NULL;
 
 	while (($line = fgets($markdown)))
 	{
@@ -568,18 +569,22 @@ function get_title_from_markdown($path)
 			}
 		}
 
-		if (strlen($line) > 2)
+		if ($heading_title === NULL && strlen($line) > 2)
 		{
-			// 先頭の文字が#ならば、#と空白を削除して行末までの文字列を返す
+			// 先頭の文字が#ならば、#と空白を削除して行末までの文字列を保持する
 			if ($line[0] === '#' && $line[1] === ' ')
 			{
-				fclose($markdown);
-				return substr($line, 2);
+				$heading_title = substr($line, 2);
 			}
 		}
 	}
 
 	fclose($markdown);
+
+	if ($heading_title !== NULL)
+	{
+		return $heading_title;
+	}
 
 	return $title;
 }
