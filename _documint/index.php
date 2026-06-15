@@ -577,13 +577,20 @@ function parse_md($path, $pages)
 		}
 		else if (preg_match('/^\{\{category_list(?:\s+(.+))?\}\}$/u', $token, $match))
 		{
-			$filter = isset($match[1]) ? trim($match[1]) : '';
-			$body .= build_category_list_markdown($pages, $filter);
+			$args = parse_category_list_arguments(isset($match[1]) ? $match[1] : '');
+			if ($args !== NULL)
+			{
+				$body .= build_category_list_markdown($pages, $args['filter'], $args['heading_level']);
+			}
 		}
 		else if (preg_match('/^\{\{category\s+(.+)\}\}$/u', $token, $match))
 		{
 			$categories = split_category_names($match[1]);
 			$body .= build_category_links_markdown($categories, $path);
+		}
+		else if (preg_match('/^\{\{title\s+(.+)\}\}$/u', $token))
+		{
+			// titleはメタ情報なので出力しない
 		}
 		else if ($token === "```source")
 		{
@@ -681,9 +688,9 @@ function parse_md($path, $pages)
 
 ////////////////////////////////////////////////////////////////////////////////
 /*
-Markdownファイル内の最初の`#`をタイトルとして取得します
+Markdownファイル内の`{{title ...}}`または最初の`#`をタイトルとして取得します
 ¥param	$path	Markdownファイルのパス
-¥return	マークダウン内の最初の`#`
+¥return	`{{title ...}}`、マークダウン内の最初の`#`、またはファイル名
 */
 function get_title_from_markdown($path)
 {
@@ -694,22 +701,37 @@ function get_title_from_markdown($path)
 	}
 
 	$title = pathinfo($path, PATHINFO_FILENAME);
+	$heading_title = NULL;
 
 	while (($line = fgets($markdown)))
 	{
 		$line = trim($line);
-		if (strlen($line) > 2)
+		if (preg_match('/^\{\{title\s+(.+)\}\}$/u', $line, $match))
 		{
-			// 先頭の文字が#ならば、#と空白を削除して行末までの文字列を返す
-			if ($line[0] === '#' && $line[1] === ' ')
+			$specified_title = trim($match[1]);
+			if ($specified_title !== '')
 			{
 				fclose($markdown);
-				return substr($line, 2);
+				return $specified_title;
+			}
+		}
+
+		if ($heading_title === NULL && strlen($line) > 2)
+		{
+			// 先頭の文字が#ならば、#と空白を削除して行末までの文字列を保持する
+			if ($line[0] === '#' && $line[1] === ' ')
+			{
+				$heading_title = substr($line, 2);
 			}
 		}
 	}
 
 	fclose($markdown);
+
+	if ($heading_title !== NULL)
+	{
+		return $heading_title;
+	}
 
 	return $title;
 }
@@ -744,19 +766,55 @@ function get_categories_from_markdown($path)
 }
 
 /*
+category_listタグの引数を解析
+*/
+function parse_category_list_arguments($rawArgs)
+{
+	$args = trim($rawArgs);
+	$heading_level = 2;
+	$filter = '';
+
+	if ($args !== '')
+	{
+		if (preg_match('/^size\s*=\s*([1-6])(?:\s*,\s*(.*))?$/u', $args, $match))
+		{
+			$heading_level = intval($match[1]);
+			if (isset($match[2]))
+			{
+				$filter = trim($match[2]);
+			}
+		}
+		else if (preg_match('/^size\s*=/u', $args))
+		{
+			return NULL;
+		}
+		else
+		{
+			$filter = $args;
+		}
+	}
+
+	return [
+		'filter' => $filter,
+		'heading_level' => $heading_level,
+	];
+}
+
+/*
 カテゴリ一覧をMarkdownで生成
 */
-function build_category_list_markdown($pages, $filter)
+function build_category_list_markdown($pages, $filter, $heading_level = 2)
 {
 	$body = '';
 	$categories = build_category_page_map($pages);
 	$filters = split_category_names($filter);
+	$heading_marker = str_repeat('#', $heading_level);
 
 	if (!empty($filters))
 	{
 		foreach ($filters as $category)
 		{
-			$body .= '## ' . $category . "\n\n";
+			$body .= $heading_marker . ' ' . $category . "\n\n";
 			if (array_key_exists($category, $categories))
 			{
 				foreach ($categories[$category] as $page)
@@ -772,7 +830,7 @@ function build_category_list_markdown($pages, $filter)
 
 	foreach ($categories as $category => $category_pages)
 	{
-		$body .= '## ' . $category . "\n\n";
+		$body .= $heading_marker . ' ' . $category . "\n\n";
 		foreach ($category_pages as $page)
 		{
 			$body .= "* [" . $page->getTitle() . "](" . $page->getNetworkPath() . ")\n";

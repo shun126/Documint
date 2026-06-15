@@ -8,14 +8,16 @@ MarkdownからスッキリとしたWebページをサクッと発行
 `{{body}}`
 `{{sidebar}}`
 `{{category カテゴリ名,...}}`
-`{{category_list カテゴリ名}}`
+`{{category_list [size=見出しレベル[, カテゴリ名]]}}`
 
 ### category / category_list
 - `{{category カテゴリ名}}` でページにカテゴリを設定し、カテゴリ別ページへのリンクを本文に生成。複数カテゴリは `,` 区切りで指定。
 - カテゴリ別ページは `_page_list/category-{hash}.html` に自動生成。`{hash}` はカテゴリ名から生成したハッシュ。
 - `{{category_list}}` はカテゴリごとに `<h2>カテゴリ名</h2>` + ページリストを現在ページへ生成。
+- `{{category_list size=3}}` はカテゴリごとに `<h3>カテゴリ名</h3>` + ページリストを生成。見出しレベルは `1` から `6` まで指定可能。
 - `{{category_list カテゴリ名}}` は指定カテゴリのページだけを現在ページへ生成。
 - `{{category_list カテゴリ名1,カテゴリ名2}}` は指定した複数カテゴリのページリストを現在ページへ生成。
+- `{{category_list size=3, カテゴリ名1,カテゴリ名2}}` は指定した複数カテゴリを `<h3>カテゴリ名</h3>` で生成。
 - `page_list.html` は `_page_list/page_list.html` に自動生成。
 
 ## サイドバー
@@ -23,6 +25,7 @@ MarkdownからスッキリとしたWebページをサクッと発行
 - `sidebar.md` は Markdown として処理され、`template.html` 内の `{{sidebar}}` に埋め込まれます。
 
 ## Markdown内で使用できる機能
+`{{title タイトル名}}` と記述するとページタイトルを強制的に指定できます。最初の `#` 見出しより優先されます。
 ` {{{ filename }}} ` と記述すると`filename`で指定したファイルをマージします。
 * 拡張子が`.pu`の場合はPlantUMLとして処理
 * 拡張子が`.html`の場合はHTMLとして処理
