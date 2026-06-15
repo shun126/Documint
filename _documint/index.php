@@ -148,6 +148,152 @@ class PageInfomation
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+define('DOCUMINT_PAGE_LIST_DIR_NAME', '_page_list');
+define('DOCUMINT_CATEGORY_FILE_HASH_LENGTH', 16);
+
+/*
+カテゴリ指定文字列をカテゴリ名の配列へ変換
+*/
+function split_category_names($text)
+{
+	$categories = [];
+	$parts = explode(',', $text);
+	foreach ($parts as $part)
+	{
+		$name = trim($part);
+		if ($name !== '')
+		{
+			$categories[$name] = true;
+		}
+	}
+
+	return array_keys($categories);
+}
+
+/*
+カテゴリ名からカテゴリページのファイル名を生成
+*/
+function get_category_page_file_name($category)
+{
+	$hash = substr(hash('sha256', $category), 0, DOCUMINT_CATEGORY_FILE_HASH_LENGTH);
+	return 'category-' . $hash . '.html';
+}
+
+/*
+カテゴリ名からカテゴリページのファイルパスを生成
+*/
+function get_category_page_file_path($fileBasePath, $category)
+{
+	return $fileBasePath . DIRECTORY_SEPARATOR . DOCUMINT_PAGE_LIST_DIR_NAME . DIRECTORY_SEPARATOR . get_category_page_file_name($category);
+}
+
+/*
+相対リンクを生成
+*/
+function build_relative_link_path($fromFilePath, $toFilePath)
+{
+	$fromDirectory = dirname($fromFilePath);
+	$fromParts = preg_split('/[\\\/]+/', trim($fromDirectory, '\\/'));
+	$toParts = preg_split('/[\\\/]+/', trim($toFilePath, '\\/'));
+
+	if ($fromParts === false)
+	{
+		$fromParts = [];
+	}
+	if ($toParts === false)
+	{
+		$toParts = [];
+	}
+	if (count($fromParts) === 1 && $fromParts[0] === '')
+	{
+		$fromParts = [];
+	}
+	if (count($toParts) === 1 && $toParts[0] === '')
+	{
+		$toParts = [];
+	}
+
+	$index = 0;
+	$max = min(count($fromParts), count($toParts));
+	while ($index < $max && $fromParts[$index] === $toParts[$index])
+	{
+		$index += 1;
+	}
+
+	$relativeParts = array_fill(0, count($fromParts) - $index, '..');
+	$relativeParts = array_merge($relativeParts, array_slice($toParts, $index));
+	if (empty($relativeParts))
+	{
+		return './';
+	}
+
+	return implode('/', $relativeParts);
+}
+
+/*
+カテゴリリンク一覧をMarkdownで生成
+*/
+function build_category_links_markdown($categories, $sourcePath)
+{
+	$fileBasePath = realpath(__DIR__ . DIRECTORY_SEPARATOR . '..');
+	$body = '';
+	foreach ($categories as $category)
+	{
+		$categoryPagePath = get_category_page_file_path($fileBasePath, $category);
+		$linkPath = build_relative_link_path($sourcePath, $categoryPagePath);
+		$body .= '* [' . $category . '](' . $linkPath . ")\n";
+	}
+	$body .= "\n";
+
+	return $body;
+}
+
+/*
+カテゴリごとのページ情報を生成
+*/
+function build_category_page_map($pages)
+{
+	$categories = [];
+	foreach ($pages as $page)
+	{
+		$cats = $page->getCategories();
+		if (empty($cats))
+		{
+			continue;
+		}
+
+		foreach ($cats as $cat)
+		{
+			if (!array_key_exists($cat, $categories))
+			{
+				$categories[$cat] = [];
+			}
+			$categories[$cat][] = $page;
+		}
+	}
+
+	return $categories;
+}
+
+/*
+_page_listディレクトリを準備
+*/
+function prepare_page_list_directory($fileBasePath)
+{
+	$pageListDirectory = $fileBasePath . DIRECTORY_SEPARATOR . DOCUMINT_PAGE_LIST_DIR_NAME;
+	if (file_exists($pageListDirectory) && !is_dir($pageListDirectory))
+	{
+		throw new RuntimeException("Cannot create directory. '" . $pageListDirectory . "' already exists.");
+	}
+	if (!file_exists($pageListDirectory) && !mkdir($pageListDirectory, 0777, true))
+	{
+		throw new RuntimeException("Cannot create directory. '" . $pageListDirectory . "'");
+	}
+
+	return $pageListDirectory;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 /**
  * Base64にエンコードする
  */
@@ -233,7 +379,7 @@ function encode64($c)
 function plantuml($file, $endtag, &$lineNumber)
 {
 	$code = '';
-	
+
 	while (($line = fgets($file)))
 	{
 		$lineNumber += 1;
@@ -256,7 +402,7 @@ function plantuml($file, $endtag, &$lineNumber)
 function mermaid($file, &$lineNumber)
 {
 	$code = '';
-	
+
 	while ($line = fgets($file))
 	{
 		$lineNumber += 1;
@@ -340,7 +486,7 @@ function looks_like_raw_html($token)
 function source($file, &$lineNumber)
 {
 	$code = '';
-	
+
 	while (($line = fgets($file)))
 	{
 		$lineNumber += 1;
@@ -437,9 +583,10 @@ function parse_md($path, $pages)
 				$body .= build_category_list_markdown($pages, $args['filter'], $args['heading_level']);
 			}
 		}
-		else if (preg_match('/^\{\{category\s+(.+)\}\}$/u', $token))
+		else if (preg_match('/^\{\{category\s+(.+)\}\}$/u', $token, $match))
 		{
-			// categoryはメタ情報なので出力しない
+			$categories = split_category_names($match[1]);
+			$body .= build_category_links_markdown($categories, $path);
 		}
 		else if (preg_match('/^\{\{title\s+(.+)\}\}$/u', $token))
 		{
@@ -512,7 +659,7 @@ function parse_md($path, $pages)
 					// plantuml
 					else if ($extension === 'pu')
 					{
-						$encode = encodep($inner_contents);					
+						$encode = encodep($inner_contents);
 						$body .= '![uml](http://www.plantuml.com/plantuml/svg/' . $encode . ')' . PHP_EOL;
 					}
 					// markdown
@@ -607,14 +754,9 @@ function get_categories_from_markdown($path)
 		$line = trim($line);
 		if (preg_match('/^\{\{category\s+(.+)\}\}$/u', $line, $match))
 		{
-			$parts = explode(',', $match[1]);
-			foreach ($parts as $part)
+			foreach (split_category_names($match[1]) as $name)
 			{
-				$name = trim($part);
-				if ($name !== '')
-				{
-					$categories[$name] = true;
-				}
+				$categories[$name] = true;
 			}
 		}
 	}
@@ -652,11 +794,6 @@ function parse_category_list_arguments($rawArgs)
 		}
 	}
 
-	if ($filter !== '' && strpos($filter, ',') !== false)
-	{
-		return NULL;
-	}
-
 	return [
 		'filter' => $filter,
 		'heading_level' => $heading_level,
@@ -669,44 +806,26 @@ function parse_category_list_arguments($rawArgs)
 function build_category_list_markdown($pages, $filter, $heading_level = 2)
 {
 	$body = '';
+	$categories = build_category_page_map($pages);
+	$filters = split_category_names($filter);
 	$heading_marker = str_repeat('#', $heading_level);
-	if ($filter !== NULL && $filter !== '')
-	{
-		$body .= $heading_marker . ' ' . $filter . "\n\n";
-		foreach ($pages as $page)
-		{
-			$cats = $page->getCategories();
-			if (empty($cats))
-			{
-				continue;
-			}
 
-			if (in_array($filter, $cats, true))
+	if (!empty($filters))
+	{
+		foreach ($filters as $category)
+		{
+			$body .= $heading_marker . ' ' . $category . "\n\n";
+			if (array_key_exists($category, $categories))
 			{
-				$body .= "* [" . $page->getTitle() . "](" . $page->getNetworkPath() . ")\n";
+				foreach ($categories[$category] as $page)
+				{
+					$body .= "* [" . $page->getTitle() . "](" . $page->getNetworkPath() . ")\n";
+				}
 			}
+			$body .= "\n";
 		}
-		$body .= "\n";
+
 		return $body;
-	}
-
-	$categories = [];
-	foreach ($pages as $page)
-	{
-		$cats = $page->getCategories();
-		if (empty($cats))
-		{
-			continue;
-		}
-
-		foreach ($cats as $cat)
-		{
-			if (!array_key_exists($cat, $categories))
-			{
-				$categories[$cat] = [];
-			}
-			$categories[$cat][] = $page;
-		}
 	}
 
 	foreach ($categories as $category => $category_pages)
@@ -990,6 +1109,89 @@ function gather_html_file_in_directory(&$urls, $rootUrl, $fileBasePath, $dir)
 
 ////////////////////////////////////////////////////////////////////////////////
 /*
+ページ一覧HTMLを生成
+*/
+function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
+{
+	$pageListDirectory = prepare_page_list_directory($fileBasePath);
+	$outputPath = $pageListDirectory . DIRECTORY_SEPARATOR . 'page_list.html';
+	$out = fopen($outputPath, 'wt');
+	if (!$out)
+	{
+		throw new RuntimeException("Cannot open to file. '" . $outputPath . "'");
+	}
+
+	$html = "<h1>ページの一覧</h1>";
+	foreach ($pages as $page)
+	{
+		$html .= '<li><a href="' . $page->getNetworkPath() . '">' . $page->getTitle() . '</a></li>';
+	}
+
+	$template_file_name = resolve_template_path($fileBasePath);
+	$sidebar_markdown_file_name = resolve_sidebar_path($fileBasePath);
+	$sidebar_html = '';
+	if ($sidebar_markdown_file_name != NULL)
+	{
+		$sidebar_html = parse_md($sidebar_markdown_file_name, $pages);
+	}
+	$html = template($template_file_name, 'ページ一覧', $html, $sidebar_html);
+
+	if (fwrite($out, $html) === false)
+	{
+		fclose($out);
+		throw new RuntimeException("Cannot write to file. '" . $outputPath . "'");
+	}
+	fclose($out);
+
+	echo 'generate <a href="' . $networkBasePath . '/' . DOCUMINT_PAGE_LIST_DIR_NAME . '/page_list.html">page_list.html</a></br>';
+}
+
+/*
+カテゴリ別HTMLを生成
+*/
+function generate_category_pages_html($pages, $fileBasePath, $networkBasePath)
+{
+	$pageListDirectory = prepare_page_list_directory($fileBasePath);
+	$categories = build_category_page_map($pages);
+	$template_file_name = resolve_template_path($fileBasePath);
+	$sidebar_markdown_file_name = resolve_sidebar_path($fileBasePath);
+	$sidebar_html = '';
+	if ($sidebar_markdown_file_name != NULL)
+	{
+		$sidebar_html = parse_md($sidebar_markdown_file_name, $pages);
+	}
+
+	foreach ($categories as $category => $category_pages)
+	{
+		$outputPath = $pageListDirectory . DIRECTORY_SEPARATOR . get_category_page_file_name($category);
+		$out = fopen($outputPath, 'wt');
+		if (!$out)
+		{
+			throw new RuntimeException("Cannot open to file. '" . $outputPath . "'");
+		}
+
+		$body = "<h1>カテゴリ: " . htmlspecialchars($category, ENT_QUOTES, 'UTF-8') . "</h1>";
+		$body .= "<ul>";
+		foreach ($category_pages as $page)
+		{
+			$body .= '<li><a href="' . $page->getNetworkPath() . '">' . htmlspecialchars($page->getTitle(), ENT_QUOTES, 'UTF-8') . '</a></li>';
+		}
+		$body .= "</ul>";
+		$html = template($template_file_name, 'カテゴリ: ' . $category, $body, $sidebar_html);
+
+		if (fwrite($out, $html) === false)
+		{
+			fclose($out);
+			throw new RuntimeException("Cannot write to file. '" . $outputPath . "'");
+		}
+		fclose($out);
+
+		echo 'generate <a href="' . $networkBasePath . '/' . DOCUMINT_PAGE_LIST_DIR_NAME . '/' . get_category_page_file_name($category) . '">' . htmlspecialchars($category, ENT_QUOTES, 'UTF-8') . '</a></br>';
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*
 main
 */
 try {
@@ -1025,46 +1227,12 @@ try {
 
 	// htmlファイルを生成
 	build_html_from_markdown($pages);
-	
+
 	// ページ一覧ページを生成
-	$out = fopen($fileBasePath . '/page_list.html', 'wt');
-	if ($out)
-	{	
-		$html = "<h1>ページの一覧</h1>";
-		foreach ($pages as $page)
-		{
-			$path = str_replace($fileBasePath, ".", $page->getNetworkPath());
-			if (DIRECTORY_SEPARATOR === "\\")
-			{
-				$path = str_replace(DIRECTORY_SEPARATOR, "/", $path);
-			}
-			$html .= "<li><a href=\"" . $path . "\">" . $page->getTitle() . "</a></li>";
-		}
-		unset($page);
+	generate_page_list_html($pages, $fileBasePath, $networkBasePath);
 
-		// テンプレートhtmlを検索する
-		$template_file_name = resolve_template_path($fileBasePath);
-
-		// サイドバーmarkdownを検索する
-		$sidebar_markdown_file_name = resolve_sidebar_path($fileBasePath);
-
-		// html templateを適用
-		$sidebar_html = '';
-		if ($sidebar_markdown_file_name != NULL)
-		{
-			$sidebar_html = parse_md($sidebar_markdown_file_name, $pages);
-		}
-		$html = template($template_file_name, 'ページ一覧', $html, $sidebar_html);
-
-		// write to html file
-		if (fwrite($out, $html) === false)
-		{
-			throw new RuntimeException("Cannot write to file. '" . $fileBasePath . "/page_list.html'");
-		}
-		echo "generate <a href=\"" . $networkBasePath . "/page_list.html\">page_list.html</a></br>";
-		
-		fclose($out);
-	}
+	// カテゴリ別ページを生成
+	generate_category_pages_html($pages, $fileBasePath, $networkBasePath);
 
 	echo render_parse_warnings();
 
