@@ -4,13 +4,14 @@
 ----
 {{category カテゴリ名1}}
 {{category カテゴリ名2,カテゴリ名3}}
-何も出力しない
+カテゴリリンクを出力する
 
 ## カテゴリ指定
 ----
 {{category_list カテゴリ名1}}
 {{category_list カテゴリ名2}}
 {{category_list カテゴリ名3}}
+{{category_list カテゴリ名1,カテゴリ名2}}
 
 ## カテゴリリスト
 ----
