@@ -441,6 +441,10 @@ function parse_md($path, $pages)
 		{
 			// categoryはメタ情報なので出力しない
 		}
+		else if (preg_match('/^\{\{title\s+(.+)\}\}$/u', $token))
+		{
+			// titleはメタ情報なので出力しない
+		}
 		else if ($token === "```source")
 		{
 			$head .= markdown_to_html($body);
@@ -554,6 +558,16 @@ function get_title_from_markdown($path)
 	while (($line = fgets($markdown)))
 	{
 		$line = trim($line);
+		if (preg_match('/^\{\{title\s+(.+)\}\}$/u', $line, $match))
+		{
+			$specified_title = trim($match[1]);
+			if ($specified_title !== '')
+			{
+				fclose($markdown);
+				return $specified_title;
+			}
+		}
+
 		if (strlen($line) > 2)
 		{
 			// 先頭の文字が#ならば、#と空白を削除して行末までの文字列を返す
