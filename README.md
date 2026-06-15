@@ -8,12 +8,14 @@ MarkdownからスッキリとしたWebページをサクッと発行
 `{{body}}`
 `{{sidebar}}`
 `{{category カテゴリ名,...}}`
-`{{category_list カテゴリ名}}`
+`{{category_list [size=見出しレベル[, カテゴリ名]]}}`
 
 ### category / category_list
 - `{{category カテゴリ名}}` でページにカテゴリを設定。複数カテゴリは `,` 区切りで指定。
 - `{{category_list}}` はカテゴリごとに `<h2>カテゴリ名</h2>` + ページリストを生成。
+- `{{category_list size=3}}` はカテゴリごとに `<h3>カテゴリ名</h3>` + ページリストを生成。見出しレベルは `1` から `6` まで指定可能。
 - `{{category_list カテゴリ名}}` は指定カテゴリのページだけを生成。
+- `{{category_list size=3, カテゴリ名}}` は指定カテゴリを `<h3>カテゴリ名</h3>` で生成。
 - `{{category_list カテゴリ名1,カテゴリ名2}}` のような複数指定は無視。
 
 ## サイドバー

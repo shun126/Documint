@@ -431,10 +431,10 @@ function parse_md($path, $pages)
 		}
 		else if (preg_match('/^\{\{category_list(?:\s+(.+))?\}\}$/u', $token, $match))
 		{
-			$filter = isset($match[1]) ? trim($match[1]) : '';
-			if ($filter === '' || strpos($filter, ',') === false)
+			$args = parse_category_list_arguments(isset($match[1]) ? $match[1] : '');
+			if ($args !== NULL)
 			{
-				$body .= build_category_list_markdown($pages, $filter);
+				$body .= build_category_list_markdown($pages, $args['filter'], $args['heading_level']);
 			}
 		}
 		else if (preg_match('/^\{\{category\s+(.+)\}\}$/u', $token))
@@ -605,14 +605,55 @@ function get_categories_from_markdown($path)
 }
 
 /*
+category_listタグの引数を解析
+*/
+function parse_category_list_arguments($rawArgs)
+{
+	$args = trim($rawArgs);
+	$heading_level = 2;
+	$filter = '';
+
+	if ($args !== '')
+	{
+		if (preg_match('/^size\s*=\s*([1-6])(?:\s*,\s*(.*))?$/u', $args, $match))
+		{
+			$heading_level = intval($match[1]);
+			if (isset($match[2]))
+			{
+				$filter = trim($match[2]);
+			}
+		}
+		else if (preg_match('/^size\s*=/u', $args))
+		{
+			return NULL;
+		}
+		else
+		{
+			$filter = $args;
+		}
+	}
+
+	if ($filter !== '' && strpos($filter, ',') !== false)
+	{
+		return NULL;
+	}
+
+	return [
+		'filter' => $filter,
+		'heading_level' => $heading_level,
+	];
+}
+
+/*
 カテゴリ一覧をMarkdownで生成
 */
-function build_category_list_markdown($pages, $filter)
+function build_category_list_markdown($pages, $filter, $heading_level = 2)
 {
 	$body = '';
+	$heading_marker = str_repeat('#', $heading_level);
 	if ($filter !== NULL && $filter !== '')
 	{
-		$body .= '## ' . $filter . "\n\n";
+		$body .= $heading_marker . ' ' . $filter . "\n\n";
 		foreach ($pages as $page)
 		{
 			$cats = $page->getCategories();
@@ -651,7 +692,7 @@ function build_category_list_markdown($pages, $filter)
 
 	foreach ($categories as $category => $category_pages)
 	{
-		$body .= '## ' . $category . "\n\n";
+		$body .= $heading_marker . ' ' . $category . "\n\n";
 		foreach ($category_pages as $page)
 		{
 			$body .= "* [" . $page->getTitle() . "](" . $page->getNetworkPath() . ")\n";
