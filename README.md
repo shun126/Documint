@@ -1,90 +1,165 @@
 # Documint
-MarkdownからスッキリとしたWebページをサクッと発行
 
+Documint is a small PHP-based static site generator for publishing clean web pages from Markdown files.
 
+It scans Markdown files in the project directory, converts them to HTML, applies a template, and generates supporting pages such as a page list, category pages, and a sitemap.
 
-## テンプレート内で使用できるタグ
-`{{title}}`
-`{{body}}`
-`{{sidebar}}`
-`{{category カテゴリ名,...}}`
-`{{category_list [size=見出しレベル[, カテゴリ名]]}}`
+Japanese: [README.ja.md](README.ja.md)
 
-### category / category_list
-- `{{category カテゴリ名}}` でページにカテゴリを設定し、カテゴリ別ページへのリンクを本文に生成。複数カテゴリは `,` 区切りで指定。
-- カテゴリ別ページは `_page_list/category-{hash}.html` に自動生成。`{hash}` はカテゴリ名から生成したハッシュ。
-- `{{category_list}}` はカテゴリごとに `<h2>カテゴリ名</h2>` + ページリストを現在ページへ生成。
-- `{{category_list size=3}}` はカテゴリごとに `<h3>カテゴリ名</h3>` + ページリストを生成。見出しレベルは `1` から `6` まで指定可能。
-- `{{category_list カテゴリ名}}` は指定カテゴリのページだけを現在ページへ生成。
-- `{{category_list カテゴリ名1,カテゴリ名2}}` は指定した複数カテゴリのページリストを現在ページへ生成。
-- `{{category_list size=3, カテゴリ名1,カテゴリ名2}}` は指定した複数カテゴリを `<h3>カテゴリ名</h3>` で生成。
-- `page_list.html` は `_page_list/page_list.html` に自動生成。
+## Features
 
-## サイドバー
-- サイドバーは `sidebar.md` を親ディレクトリに向かって探索して使用します。
-- `sidebar.md` は Markdown として処理され、`template.html` 内の `{{sidebar}}` に埋め込まれます。
+- Convert Markdown files to HTML pages.
+- Apply `template.html` with `{{title}}`, `{{body}}`, and `{{sidebar}}`.
+- Resolve `sidebar.md` from the current directory or a parent directory.
+- Generate `_page_list/page_list.html` automatically.
+- Assign categories to pages and generate category index pages.
+- Render Mermaid and PlantUML diagrams from fenced code blocks.
+- Embed raw HTML explicitly with `{{html}} ... {{/html}}`.
+- Rewrite links to `.md` files so they point to generated `.html` files.
 
-## Markdown内で使用できる機能
-`{{title タイトル名}}` と記述するとページタイトルを強制的に指定できます。最初の `#` 見出しより優先されます。
-` {{{ filename }}} ` と記述すると`filename`で指定したファイルをマージします。
-* 拡張子が`.pu`の場合はPlantUMLとして処理
-* 拡張子が`.html`の場合はHTMLとして処理
-* それ以外の拡張子ではMarkdownとしてマージします。
+## Getting Started
 
-### htmlブロック
-- 生HTMLを明示的に記述したい場合は `{{html}}` と `{{/html}}` で囲みます。
-- `{{html}}` の次の行から `{{/html}}` の直前の行までは、そのままHTMLとして出力されます。
-- htmlブロック内では Markdown、`{{page_list}}`、`{{category...}}`、`{{{ filename }}}` は解釈されません。
-- `{{html ... }}` のような短縮記法、開始タグと終了タグの同一行記法、入れ子は未対応です。
-- htmlブロックの外側に書いた生HTMLは現状も動作しますが、今後はhtmlブロックの使用を推奨します。
+Place your Markdown files next to the `_documint` directory, then open `_documint/index.php` through a PHP web server.
+
+For local development:
+
+```powershell
+php -S localhost:8000 -t .
+```
+
+Then open:
+
+```text
+http://localhost:8000/_documint/index.php
+```
+
+Documint will generate `.html` files beside your Markdown files, plus:
+
+- `_page_list/page_list.html`
+- `_page_list/category-*.html`
+- `sitemap.xml`
+
+See the tutorial in [docs/index.md](docs/index.md).
+
+## Template Tags
+
+The HTML template can use these placeholders:
+
+```text
+{{title}}
+{{body}}
+{{sidebar}}
+```
+
+- `{{title}}` is replaced with the page title.
+- `{{body}}` is replaced with the converted Markdown body.
+- `{{sidebar}}` is replaced with the converted `sidebar.md` content.
+
+## Markdown Tags
+
+### Page Title
+
+Use `{{title Page Title}}` to set the page title explicitly.
+
+```text
+{{title Getting Started}}
+```
+
+This takes priority over the first `# Heading` in the Markdown file.
+
+### Categories
+
+Use `{{category ...}}` to assign one or more categories to a page and output links to the generated category pages.
+
+```text
+{{category Guide, Reference}}
+```
+
+Multiple categories are separated with commas.
+
+Category pages are generated under `_page_list/category-{hash}.html`.
+
+### Category Lists
+
+Use `{{category_list}}` to output grouped page lists for all categories.
+
+```text
+{{category_list}}
+```
+
+You can filter categories:
+
+```text
+{{category_list Guide}}
+{{category_list Guide, Reference}}
+```
+
+You can also choose the heading level:
+
+```text
+{{category_list size=3}}
+{{category_list size=3, Guide, Reference}}
+```
+
+The heading level can be `1` through `6`.
+
+### Page List
+
+Use `{{page_list}}` to output links to all discovered Markdown pages.
+
+```text
+{{page_list}}
+```
+
+Documint also generates the full page list at `_page_list/page_list.html`.
+
+### Include Files
+
+Use triple braces to include another file:
+
+```text
+{{{ filename }}}
+```
+
+- `.pu` files are rendered as PlantUML.
+- `.html` and `.htm` files are included as HTML fragments.
+- Other files are included as Markdown.
+
+### Raw HTML Blocks
+
+Use `{{html}} ... {{/html}}` when you want to write raw HTML directly in a Markdown page.
 
 ```text
 {{html}}
-<a href="a">a</a>
+<div class="alert alert-info">This HTML is emitted as-is.</div>
 {{/html}}
 ```
 
-### HTMLファイルの取り込みとの使い分け
-- `{{{ part.html }}}` は再利用するHTML断片の取り込みに使います。
-- `{{html}} ... {{/html}}` はページ内でその場限りのHTMLを直接書きたい場合に使います。
+Inside an HTML block, Markdown and Documint tags are not interpreted.
 
-* ` ```source `
-* ` ```mermaid `
-* ` ```plantuml `
-* ` {{page_list}} `
-* ` @startuml `
+## Diagrams and Code
 
-# テスト
+Documint supports these fenced blocks:
 
-## mermaid
+````text
 ```mermaid
 graph TB
-  Start([Start])-->B{if a > b}
-  B-->|True| End
-  B-->|False| IFS[/while\]
-  IFS-->C[a++]
-  C-->IFB[\  /]
-  IFB-->End([End])
+  Start --> End
 ```
 
-## plantuml
 ```plantuml
-Interface InterfaceA {
-}
-
-class ClassA {
-}
-
-InterfaceA <|.. ClassA
+@startuml
+class Example
+@enduml
 ```
 
-## Code
-```cpp
-int main(int argc, char* argv[])
-{
-  return 0;
-}
+```source
+<p>This source block is emitted directly.</p>
 ```
+````
 
-# 謝辞
-PHPのMarkdownパーサーに[parsedown](https://github.com/erusev/parsedown)を利用しています。
+It also supports PlantUML blocks that start with `@startuml` and end with `@enduml`.
+
+## Acknowledgements
+
+Documint uses [Parsedown](https://github.com/erusev/parsedown) as its PHP Markdown parser.
