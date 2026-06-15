@@ -615,14 +615,17 @@ function parse_category_list_arguments($rawArgs)
 
 	if ($args !== '')
 	{
-		$parts = preg_split('/\s+/u', $args, 2);
-		if (preg_match('/^[1-6]$/u', $parts[0]))
+		if (preg_match('/^size\s*=\s*([1-6])(?:\s*,\s*(.*))?$/u', $args, $match))
 		{
-			$heading_level = intval($parts[0]);
-			if (isset($parts[1]))
+			$heading_level = intval($match[1]);
+			if (isset($match[2]))
 			{
-				$filter = trim($parts[1]);
+				$filter = trim($match[2]);
 			}
+		}
+		else if (preg_match('/^size\s*=/u', $args))
+		{
+			return NULL;
 		}
 		else
 		{
