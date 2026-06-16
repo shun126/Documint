@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Ensure PHP is available
         run: |
@@ -55,6 +57,8 @@ jobs:
 
           rm -rf "${build_source}" "${site_dir}"
           mkdir -p "${build_source}" "${site_dir}/docs"
+
+          test -f _documint/parsedown/Parsedown.php
 
           cp -R _documint "${build_source}/_documint"
           cp -R docs "${build_source}/docs"
