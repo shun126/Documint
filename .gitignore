@@ -1,5 +1,7 @@
-test
 sitemap.xml
 *.html
+test/
 _page_list/
 _site/
+
+!**/template.html

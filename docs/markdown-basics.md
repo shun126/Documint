@@ -1,7 +1,8 @@
 {{title Markdown Basics}}
-{{category Tutorial}}
 
 # Markdown Basics
+
+![Markdown Basics](images/markdown-basics.png)
 
 This page demonstrates a small documentation page written in ordinary Markdown.
 
@@ -26,4 +27,6 @@ Use headings to divide the page into sections. Paragraphs are written as plain t
 
 Links to Markdown files are rewritten to generated HTML paths.
 
-Go back to [Documint Tutorial](index.md).
+Go back to [Documint](index.md).
+
+{{category Tutorial, GettingStarted, Moriya}}
