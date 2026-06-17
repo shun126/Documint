@@ -1,103 +1,54 @@
-{{title Documint Tutorial}}
-{{category Tutorial, Guide}}
+{{title Documint}}
 
-# Documint Tutorial
+![](images/header.png)
 
-This page is both a tutorial and a working example. Open `_documint/index.php` through a PHP server and Documint will generate `docs/index.html` from this file.
+# Documint
 
-## 1. Write Markdown
+Documint is a small PHP-based static site generator for teams that want to publish Markdown as clean HTML pages.
 
-Create `.md` files anywhere outside directories that start with `_` or `.`. Documint scans those files and generates matching `.html` files.
+It is designed for documentation that starts small but needs to stay findable: project notes, onboarding guides, operation manuals, feature references, and team knowledge bases.
 
-For example, this file becomes:
+## Why Documint?
 
-```text
-docs/index.html
-```
+- Write pages in ordinary Markdown.
+- Generate HTML pages with a shared template and sidebar.
+- Publish the generated site with GitHub Pages.
+- Organize the same page through multiple categories.
+- Use categories not only as topics, but also as audience, importance, owner, or author signatures.
 
-## 2. Set a Page Title
+## Categories as a Matrix
 
-The first line of this file uses:
+Documint lets one page belong to several categories at the same time.
 
-```text
-{{title Documint Tutorial}}
-```
-
-That title is used for the generated HTML `<title>` and for page lists. If `{{title ...}}` is omitted, Documint uses the first `# Heading`.
-
-## 3. Add Categories
-
-This page uses:
+For example, a page can be marked as required reading, aimed at engineers, and signed by its owner:
 
 ```text
-{{category Tutorial, Guide}}
+{{category Required, Engineer, Moriya}}
 ```
 
-Documint records the categories and also prints links to the generated category pages here:
+That single page can then be found from different viewpoints:
 
-{{category Tutorial, Guide}}
+- `Required`: important pages everyone should read.
+- `Engineer`: pages for engineers.
+- `Moriya`: pages written, owned, or maintained by Moriya.
 
-## 4. Show Category Lists
+This is useful when a document should not live in only one folder-like location. A release note can be both `Required` and `Engineer`; an operations guide can be both `Operations` and `Moriya`.
 
-Use `{{category_list}}` to show all category groups:
+## Start Small
 
-{{category_list size=3}}
+Create a Markdown file, open `_documint/index.php` through a PHP server, and Documint generates a matching HTML file.
 
-You can also filter to specific categories:
-
-{{category_list size=3, Tutorial, Reference}}
-
-## 5. Show All Pages
-
-Use `{{page_list}}` to show every Markdown page discovered by Documint:
-
-{{page_list}}
-
-Documint also generates the full list at `_page_list/page_list.html`.
-
-## 6. Use the Sidebar
-
-The sidebar is loaded from the nearest `sidebar.md`. This tutorial includes `docs/sidebar.md`, so pages under `docs/` use that sidebar.
-
-## 7. Render Mermaid
-
-```mermaid
-graph TB
-  Markdown[Markdown files] --> Generator[_documint/index.php]
-  Generator --> Html[HTML pages]
-  Generator --> Lists[Page and category lists]
+```text
+docs/index.md -> docs/index.html
 ```
 
-## 8. Render PlantUML
+The generated site also includes page lists, category pages, and a sitemap.
 
-```plantuml
-@startuml
-interface MarkdownSource
-class Documint
-class HtmlPage
+## Explore the Examples
 
-MarkdownSource --> Documint
-Documint --> HtmlPage
-@enduml
-```
+- [Markdown Basics](markdown-basics.md): a small Markdown page example.
+- [Category Workflow](category-workflow.md): how to use categories as topic, audience, importance, and signature.
+- [Feature Reference](feature-reference.md): detailed Documint syntax examples and generation checks.
+- [Advanced Features](advanced-features.md): diagrams, source blocks, and raw HTML examples.
 
-## 9. Render Code
-
-```php
-<?php
-echo "Hello from Documint";
-```
-
-## 10. Use Raw HTML
-
-Use `{{html}} ... {{/html}}` for raw HTML that should be emitted as-is.
-
-{{html}}
-<div class="alert alert-info">
-  This block is raw HTML inside a Markdown page.
-</div>
-{{/html}}
-
-## Next Steps
-
-Read [Markdown Basics](markdown-basics.md) for a smaller content page and [Advanced Features](advanced-features.md) for diagram and raw HTML examples.
+{{category Required, ProductOverview, Moriya}}

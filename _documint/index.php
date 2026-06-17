@@ -1,4 +1,4 @@
-<html lang="ja">
+﻿<html lang="en">
 <head>
 	<meta charset="UTF-8" />
 	<meta http-equiv="x-ua-compatible" content="IE=9">
@@ -24,38 +24,52 @@
 
 <?php
 /**
- * markdownファイルからhtmlファイルを生成します
+ * Generates HTML files from Markdown files.
  */
+
+define('DOCUMINT_VERSION', '0.1.0');
+define('DOCUMINT_PAGE_LIST_DIR_NAME', '_page_list');
+define('DOCUMINT_CATEGORY_FILE_HASH_LENGTH', 16);
+define('DOCUMINT_DEBUG_CATEGORY_LINKS', false);
 
 require_once "parsedown/Parsedown.php";
 
 /**
- * マークダウンパーサークラス
+ * Markdown parser class.
  */
 class Markdown extends Parsedown
 {
+	private $sourcePath;
+	private $outputPath;
+
+	public function __construct($sourcePath = NULL, $outputPath = NULL)
+	{
+		$this->sourcePath = $sourcePath;
+		$this->outputPath = $outputPath;
+	}
+
 	/**
-	 * イメージのオーバーライド関数
+     * Override image handling.
 	 */
 	protected function inlineImage($Excerpt)
 	{
 		$Inline = parent::inlineImage($Excerpt);
 		if (isset($Inline))
 		{
-			// ファイル名を分解
+            // Parse the file extension.
 			$extension = pathinfo($Inline["element"]["attributes"]['src'], PATHINFO_EXTENSION);
 			if (is_string($extension))
 			{
 				if (strcasecmp($extension, "mp4") == 0)
 				{
-					// ビデオ
+                    // Video.
 					$Inline["element"]["name"] = "video";
 					$Inline["element"]["attributes"] += array('controls'=>'');
 					$Inline["element"]["attributes"] += array('class'=>'embed-responsive embed-responsive-16by9');
 				}
 				else
 				{
-					// 画像
+                    // Image.
 					$Inline["element"]["attributes"] += array('class'=>'img-fluid');
 				}
 			}
@@ -64,7 +78,7 @@ class Markdown extends Parsedown
 	}
 
 	/**
-	 * テーブルのオーバーライド関数
+     * Override table handling.
 	 */
 	protected function blockTable($Line, ?array $Block = null)
 	{
@@ -81,7 +95,7 @@ class Markdown extends Parsedown
 	}
 
 	/**
-	 * リンクのオーバーライド関数
+     * Override link handling.
 	 */
 	protected function inlineLink($Excerpt)
 	{
@@ -90,17 +104,11 @@ class Markdown extends Parsedown
 		{
 			if ($Excerpt["element"]["name"] === "a")
 			{
-				$url = parse_url($Excerpt["element"]['attributes']['href']);
-				if (array_key_exists('path', $url) && strpos($url['path'], '.md') !== false)
-				{
-					$path = pathinfo($url['path']);
-					if (array_key_exists('extension', $path) && strcasecmp($path['extension'], "md") == 0)
-					{
-						// .md を .html に変換
-						$newPath = $path['dirname'] . DIRECTORY_SEPARATOR . $path['filename'] . ".html";
-						$Excerpt["element"]['attributes']['href'] = $newPath;
-					}
-				}
+				$Excerpt["element"]['attributes']['href'] = rewrite_markdown_link_to_html(
+					$Excerpt["element"]['attributes']['href'],
+					$this->sourcePath,
+					$this->outputPath
+				);
 			}
 		}
 		return $Excerpt ;
@@ -109,7 +117,7 @@ class Markdown extends Parsedown
 
 ////////////////////////////////////////////////////////////////////////////////
 /*
-ページ情報クラス
+Page information class.
 */
 class PageInfomation
 {
@@ -148,11 +156,9 @@ class PageInfomation
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-define('DOCUMINT_PAGE_LIST_DIR_NAME', '_page_list');
-define('DOCUMINT_CATEGORY_FILE_HASH_LENGTH', 16);
 
 /*
-カテゴリ指定文字列をカテゴリ名の配列へ変換
+Convert a category tag argument into category names.
 */
 function split_category_names($text)
 {
@@ -171,7 +177,7 @@ function split_category_names($text)
 }
 
 /*
-カテゴリ名からカテゴリページのファイル名を生成
+Generate the category page file name from a category name.
 */
 function get_category_page_file_name($category)
 {
@@ -180,7 +186,7 @@ function get_category_page_file_name($category)
 }
 
 /*
-カテゴリ名からカテゴリページのファイルパスを生成
+Generate the category page file path from a category name.
 */
 function get_category_page_file_path($fileBasePath, $category)
 {
@@ -188,22 +194,14 @@ function get_category_page_file_path($fileBasePath, $category)
 }
 
 /*
-相対リンクを生成
+Generate a relative link path.
 */
 function build_relative_link_path($fromFilePath, $toFilePath)
 {
-	$fromDirectory = dirname($fromFilePath);
-	$fromParts = preg_split('/[\\\/]+/', trim($fromDirectory, '\\/'));
-	$toParts = preg_split('/[\\\/]+/', trim($toFilePath, '\\/'));
-
-	if ($fromParts === false)
-	{
-		$fromParts = [];
-	}
-	if ($toParts === false)
-	{
-		$toParts = [];
-	}
+	$fromDirectory = str_replace('\\', '/', dirname($fromFilePath));
+	$toFilePath = str_replace('\\', '/', $toFilePath);
+	$fromParts = explode('/', trim($fromDirectory, '/'));
+	$toParts = explode('/', trim($toFilePath, '/'));
 	if (count($fromParts) === 1 && $fromParts[0] === '')
 	{
 		$fromParts = [];
@@ -230,26 +228,114 @@ function build_relative_link_path($fromFilePath, $toFilePath)
 	return implode('/', $relativeParts);
 }
 
+function is_external_link($href)
+{
+	return preg_match('/^[a-z][a-z0-9+.-]*:/i', $href) === 1 || strpos($href, '//') === 0 || strpos($href, '#') === 0;
+}
+
+function normalize_file_path($path)
+{
+	$path = str_replace('\\', '/', $path);
+	$prefix = '';
+	if (preg_match('/^[A-Za-z]:\//', $path) === 1)
+	{
+		$prefix = substr($path, 0, 3);
+		$path = substr($path, 3);
+	}
+	else if (strpos($path, '/') === 0)
+	{
+		$prefix = '/';
+		$path = substr($path, 1);
+	}
+
+	$parts = [];
+	foreach (explode('/', $path) as $part)
+	{
+		if ($part === '' || $part === '.')
+			continue;
+		if ($part === '..')
+		{
+			if (!empty($parts) && end($parts) !== '..')
+				array_pop($parts);
+			else
+				$parts[] = $part;
+			continue;
+		}
+		$parts[] = $part;
+	}
+
+	return $prefix . implode('/', $parts);
+}
+
+function rewrite_markdown_link_to_html($href, $sourcePath, $outputPath)
+{
+	if ($sourcePath === NULL || $outputPath === NULL || $href === '' || is_external_link($href))
+		return $href;
+
+	$url = parse_url($href);
+	if ($url === false || !array_key_exists('path', $url) || $url['path'] === '')
+		return $href;
+	if (array_key_exists('scheme', $url) || array_key_exists('host', $url))
+		return $href;
+
+	$path = pathinfo($url['path']);
+	if (!array_key_exists('extension', $path) || strcasecmp($path['extension'], 'md') !== 0)
+		return $href;
+
+	if (strpos($url['path'], '/') === 0)
+	{
+		$linkPath = ($path['dirname'] === '/' ? '/' : $path['dirname'] . '/') . $path['filename'] . '.html';
+		if (array_key_exists('query', $url))
+			$linkPath .= '?' . $url['query'];
+		if (array_key_exists('fragment', $url))
+			$linkPath .= '#' . $url['fragment'];
+		return $linkPath;
+	}
+
+	$sourceDirectory = dirname($sourcePath);
+	$targetMarkdownPath = normalize_file_path($sourceDirectory . DIRECTORY_SEPARATOR . $url['path']);
+	$targetPathInfo = pathinfo($targetMarkdownPath);
+	$targetHtmlPath = $targetPathInfo['dirname'] . DIRECTORY_SEPARATOR . $targetPathInfo['filename'] . '.html';
+	$linkPath = build_relative_link_path($outputPath, $targetHtmlPath);
+
+	if (array_key_exists('query', $url))
+		$linkPath .= '?' . $url['query'];
+	if (array_key_exists('fragment', $url))
+		$linkPath .= '#' . $url['fragment'];
+
+	return $linkPath;
+}
+
 /*
-カテゴリリンク一覧をMarkdownで生成
+Generate category links as Markdown.
 */
 function build_category_links_markdown($categories, $sourcePath)
 {
 	$fileBasePath = realpath(__DIR__ . DIRECTORY_SEPARATOR . '..');
-	$body = '';
+	$links = [];
+	$debug = '';
 	foreach ($categories as $category)
 	{
 		$categoryPagePath = get_category_page_file_path($fileBasePath, $category);
 		$linkPath = build_relative_link_path($sourcePath, $categoryPagePath);
-		$body .= '* [' . $category . '](' . $linkPath . ")\n";
+		if (DOCUMINT_DEBUG_CATEGORY_LINKS === true)
+		{
+			$debug .= '<!-- DOCUMINT_CATEGORY_LINK_DEBUG';
+			$debug .= ' category="' . htmlspecialchars($category, ENT_QUOTES, 'UTF-8') . '"';
+			$debug .= ' sourcePath="' . htmlspecialchars($sourcePath, ENT_QUOTES, 'UTF-8') . '"';
+			$debug .= ' fileBasePath="' . htmlspecialchars($fileBasePath, ENT_QUOTES, 'UTF-8') . '"';
+			$debug .= ' categoryPagePath="' . htmlspecialchars($categoryPagePath, ENT_QUOTES, 'UTF-8') . '"';
+			$debug .= ' linkPath="' . htmlspecialchars($linkPath, ENT_QUOTES, 'UTF-8') . '"';
+			$debug .= " -->\n";
+		}
+		$links[] = '[' . $category . '](' . $linkPath . ')';
 	}
-	$body .= "\n";
 
-	return $body;
+	return $debug . implode(', ', $links) . "\n\n";
 }
 
 /*
-カテゴリごとのページ情報を生成
+Build the page map for each category.
 */
 function build_category_page_map($pages)
 {
@@ -276,7 +362,7 @@ function build_category_page_map($pages)
 }
 
 /*
-_page_listディレクトリを準備
+Prepare the _page_list directory.
 */
 function prepare_page_list_directory($fileBasePath)
 {
@@ -295,7 +381,7 @@ function prepare_page_list_directory($fileBasePath)
 
 ////////////////////////////////////////////////////////////////////////////////
 /**
- * Base64にエンコードする
+ * Encode PlantUML text.
  */
 function encodep($text)
 {
@@ -304,7 +390,7 @@ function encodep($text)
 }
 
 /**
- * Base64にエンコードする
+ * Encode a 6-bit value for PlantUML.
  */
 function encode6bit($b)
 {
@@ -330,7 +416,7 @@ function encode6bit($b)
 }
 
 /**
- * Base64にエンコードする
+ * Append three bytes to the PlantUML encoding.
  */
 function append3bytes($b1, $b2, $b3)
 {
@@ -347,7 +433,7 @@ function append3bytes($b1, $b2, $b3)
 }
 
 /**
- * Base64にエンコードする
+ * Encode compressed PlantUML bytes.
  */
 function encode64($c)
 {
@@ -374,7 +460,7 @@ function encode64($c)
 
 ////////////////////////////////////////////////////////////////////////////////
 /**
- * PlantUMLにエンコード
+ * Encode a PlantUML block.
  */
 function plantuml($file, $endtag, &$lineNumber)
 {
@@ -397,7 +483,7 @@ function plantuml($file, $endtag, &$lineNumber)
 }
 
 /**
- * Mermaidにエンコード
+ * Render a Mermaid block.
  */
 function mermaid($file, &$lineNumber)
 {
@@ -418,11 +504,11 @@ function mermaid($file, &$lineNumber)
 
 ////////////////////////////////////////////////////////////////////////////////
 /**
- * markdownをhtmlに変換
+ * Convert Markdown to HTML.
  */
-function markdown_to_html($source)
+function markdown_to_html($source, $sourcePath = NULL, $outputPath = NULL)
 {
-	$markdown = new Markdown();
+	$markdown = new Markdown($sourcePath, $outputPath);
 	$markdown->setMarkupEscaped(false);
 	return $markdown->text($source);
 }
@@ -430,7 +516,7 @@ function markdown_to_html($source)
 $parseWarnings = [];
 
 /**
- * 解析時の警告を記録します
+ * Register a parse warning.
  */
 function register_parse_warning($path, $lineNumber, $message)
 {
@@ -448,7 +534,7 @@ function register_parse_warning($path, $lineNumber, $message)
 }
 
 /**
- * 解析時の警告をHTMLとして出力します
+ * Render parse warnings as HTML.
  */
 function render_parse_warnings()
 {
@@ -474,7 +560,7 @@ function render_parse_warnings()
 }
 
 /**
- * 生HTMLらしい行か判定します
+ * Returns true when a token looks like raw HTML.
  */
 function looks_like_raw_html($token)
 {
@@ -501,9 +587,9 @@ function source($file, &$lineNumber)
 }
 
 /**
- * markdownを解析して出力します
+ * Parse Markdown and return HTML.
  */
-function parse_md($path, $pages)
+function parse_md($path, $pages, $outputPath = NULL)
 {
 	$markdown = fopen($path, 'rt');
 	if ($markdown === false)
@@ -550,7 +636,7 @@ function parse_md($path, $pages)
 		}
 		else if ($token === '{{html}}')
 		{
-			$head .= markdown_to_html($body);
+			$head .= markdown_to_html($body, $path, $outputPath);
 			$body = '';
 			$html = '';
 			$htmlBlockStartLine = $lineNumber;
@@ -586,33 +672,33 @@ function parse_md($path, $pages)
 		else if (preg_match('/^\{\{category\s+(.+)\}\}$/u', $token, $match))
 		{
 			$categories = split_category_names($match[1]);
-			$body .= build_category_links_markdown($categories, $path);
+			$body .= build_category_links_markdown($categories, $outputPath !== NULL ? $outputPath : $path);
 		}
 		else if (preg_match('/^\{\{title\s+(.+)\}\}$/u', $token))
 		{
-			// titleはメタ情報なので出力しない
+            // Title is metadata and is not emitted.
 		}
 		else if ($token === "```source")
 		{
-			$head .= markdown_to_html($body);
+			$head .= markdown_to_html($body, $path, $outputPath);
 			$head .= source($markdown, $lineNumber);
 			$body = '';
 		}
 		else if ($token === "```mermaid")
 		{
-			$head .= markdown_to_html($body);
+			$head .= markdown_to_html($body, $path, $outputPath);
 			$head .= mermaid($markdown, $lineNumber);
 			$body = '';
 		}
 		else if ($token === "```plantuml")
 		{
-			$head .= markdown_to_html($body);
+			$head .= markdown_to_html($body, $path, $outputPath);
 			$head .= plantuml($markdown, "```", $lineNumber);
 			$body = '';
 		}
 		else if ($token === "@startuml")
 		{
-			$head .= markdown_to_html($body);
+			$head .= markdown_to_html($body, $path, $outputPath);
 			$head .= plantuml($markdown, "@enduml", $lineNumber);
 			$body = '';
 		}
@@ -624,23 +710,23 @@ function parse_md($path, $pages)
 		else
 		{
 			/*
-			{{{ filename }}} と記述するとfilenameで指定したファイルをマージします。
-			拡張子がpuの場合はPlantUMLとして処理
-			拡張子がhtmlの場合はHTMLとして処理
-			それ以外の拡張子ではMarkdownとしてマージします。
+            Triple braces include another file into the page.
+            .pu files are rendered as PlantUML.
+            .html and .htm files are included as HTML fragments.
+            Other files are included as Markdown.
 			*/
 			if (preg_match('{{{\s[0-9a-zA-Z./]+\s}}}', $token, $match))
 			{
-				// {{ }} を取り除く
+                // Remove the outer braces.
 				$length = strlen($match[0]) - 4;
 				$filename = trim(substr($match[0], 2, $length));
 
-				// ファイル名を分解
+                // Parse the file extension.
 				$extension = pathinfo($filename, PATHINFO_EXTENSION);
 				if (is_string($extension))
 					$extension = "";
 
-				// ファイル名を分解
+                // Resolve the included file path.
 				$directory = pathinfo($path, PATHINFO_DIRNAME) . DIRECTORY_SEPARATOR;
 				$contents_path = $directory . $filename;
 				if (is_file($contents_path))
@@ -652,7 +738,7 @@ function parse_md($path, $pages)
 					// html
 					if ($extension === 'html' || $extension === 'htm')
 					{
-						$head .= markdown_to_html($body);
+						$head .= markdown_to_html($body, $path, $outputPath);
 						$head .= $inner_contents;
 						$body = '';
 					}
@@ -683,14 +769,14 @@ function parse_md($path, $pages)
 		throw new RuntimeException("Unclosed {{html}} block. '" . $path . "' line " . $htmlBlockStartLine);
 	}
 
-	return $head . markdown_to_html($body);
+	return $head . markdown_to_html($body, $path, $outputPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 /*
-Markdownファイル内の`{{title ...}}`または最初の`#`をタイトルとして取得します
-¥param	$path	Markdownファイルのパス
-¥return	`{{title ...}}`、マークダウン内の最初の`#`、またはファイル名
+Get the title from {{title ...}}, the first heading, or the file name.
+@param  $path  Markdown file path.
+@return Title from {{title ...}}, first Markdown heading, or file name.
 */
 function get_title_from_markdown($path)
 {
@@ -718,7 +804,7 @@ function get_title_from_markdown($path)
 
 		if ($heading_title === NULL && strlen($line) > 2)
 		{
-			// 先頭の文字が#ならば、#と空白を削除して行末までの文字列を保持する
+            // Keep the first level-one heading without the leading marker and whitespace.
 			if ($line[0] === '#' && $line[1] === ' ')
 			{
 				$heading_title = substr($line, 2);
@@ -738,7 +824,7 @@ function get_title_from_markdown($path)
 
 ////////////////////////////////////////////////////////////////////////////////
 /*
-Markdownファイルからカテゴリを取得
+Get categories from a Markdown file.
 */
 function get_categories_from_markdown($path)
 {
@@ -766,7 +852,7 @@ function get_categories_from_markdown($path)
 }
 
 /*
-category_listタグの引数を解析
+Parse category_list tag arguments.
 */
 function parse_category_list_arguments($rawArgs)
 {
@@ -801,7 +887,7 @@ function parse_category_list_arguments($rawArgs)
 }
 
 /*
-カテゴリ一覧をMarkdownで生成
+Generate a category list as Markdown.
 */
 function build_category_list_markdown($pages, $filter, $heading_level = 2)
 {
@@ -843,7 +929,7 @@ function build_category_list_markdown($pages, $filter, $heading_level = 2)
 
 ////////////////////////////////////////////////////////////////////////////////
 /**
- * htmlテンプレートにページの内容を反映します
+ * Apply page content to an HTML template.
  */
 function template($filename, $title, $body, $sidebar_html)
 {
@@ -851,7 +937,7 @@ function template($filename, $title, $body, $sidebar_html)
 	$fh = fopen($filename, "rt");
 	while (($line = fgets($fh)))
 	{
-		if(preg_match('/{{[a-z]+}}/u', $line, $match))
+		if(preg_match('/{{[a-z_]+}}/u', $line, $match))
 		{
 			if ('{{title}}' === $match[0])
 			{
@@ -865,6 +951,10 @@ function template($filename, $title, $body, $sidebar_html)
 			{
 				$line = str_replace('{{sidebar}}', $sidebar_html, $line);
 			}
+			else if ('{{documint_version}}' === $match[0])
+			{
+				$line = str_replace('{{documint_version}}', DOCUMINT_VERSION, $line);
+			}
 		}
 
 		$html .= $line;
@@ -875,7 +965,7 @@ function template($filename, $title, $body, $sidebar_html)
 
 ////////////////////////////////////////////////////////////////////////////////
 /**
- * ディレクトリをオープンしてMarkdownの情報を回収します
+ * Open directories and collect Markdown page information.
  */
 function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBasePath, $dir)
 {
@@ -892,8 +982,8 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 			if (is_dir($path))
 			{
 				/*
-				 * ディレクトリ名の先頭が.または_で始まっている
-				 * またはrs-vendorなら何もしない
+                 * Ignore directories whose names begin with . or _.
+                 * Ignore rs-vendor as well.
 				 */
 				if (
 					$file !== '' &&
@@ -906,7 +996,7 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 			}
 			else
 			{
-				// .mdファイルを記録
+                // Register .md files.
 				$path_info = pathinfo($path);
 				if (array_key_exists('extension', $path_info) && $path_info['extension'] === 'md')
 				{
@@ -927,7 +1017,7 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 }
 
 /**
- * template.htmlを親ディレクトリに向かって検索します
+ * Search for template.html upward through parent directories.
  */
 function recursive_resolve_template_path($path)
 {
@@ -943,8 +1033,8 @@ function recursive_resolve_template_path($path)
 }
 
 /**
- * template.htmlを親ディレクトリに向かって検索します
- * 無いならデフォルトテンプレートhtmlを採用する
+ * Search for template.html upward through parent directories.
+ * Fallback to the default template when no local template exists.
  */
 function resolve_template_path($path)
 {
@@ -960,7 +1050,7 @@ function resolve_template_path($path)
 }
 
 /**
- * sidebar.mdを親ディレクトリに向かって検索します
+ * Search for sidebar.md upward through parent directories.
  */
 function recursive_resolve_sidebar_path($path)
 {
@@ -976,7 +1066,7 @@ function recursive_resolve_sidebar_path($path)
 }
 
 /**
- * sidebar.mdを親ディレクトリに向かって検索します
+ * Search for sidebar.md upward through parent directories.
  */
 function resolve_sidebar_path($path)
 {
@@ -992,7 +1082,7 @@ function resolve_sidebar_path($path)
 }
 
 /**
- * 回収したmarkdown情報からhtmlを生成します
+ * Build HTML files from gathered Markdown page information.
  */
 function build_html_from_markdown($pages)
 {
@@ -1014,24 +1104,24 @@ function build_html_from_markdown($pages)
 		$out = fopen($outputHtmlPath, 'wt');
 		if ($out)
 		{
-			// テンプレートhtmlを検索する
+            // Resolve template.html.
 			$template_file_name = resolve_template_path($filepath['dirname']);
 
-			// サイドバーmarkdownを検索する
+            // Resolve sidebar Markdown.
 			$sidebar_markdown_file_name = resolve_sidebar_path($filepath['dirname']);
 
-			// markdownからhtmlへ変換
-			$html = parse_md($page->getFilePath(), $pages);
+            // Convert Markdown to HTML.
+			$html = parse_md($page->getFilePath(), $pages, $outputHtmlPath);
 
-			// html templateを適用
+            // Apply the HTML template.
 			$sidebar_html = '';
 			if ($sidebar_markdown_file_name != NULL)
 			{
-				$sidebar_html = parse_md($sidebar_markdown_file_name, $pages);
+				$sidebar_html = parse_md($sidebar_markdown_file_name, $pages, $outputHtmlPath);
 			}
 			$html = template($template_file_name, $page->getTitle(), $html, $sidebar_html);
 
-			// htmlをファイルへ出力
+            // Write the HTML file.
 			if (fwrite($out, $html) === false)
 			{
 				throw new RuntimeException("Cannot write to file. '" . $outputHtmlPath . "'");
@@ -1051,7 +1141,7 @@ function build_html_from_markdown($pages)
 
 ////////////////////////////////////////////////////////////////////////////////
 /**
- * ディレクトリをオープンしてhtmlのurlを回収します
+ * Open directories and collect HTML URLs.
  */
 function gather_html_file_in_directory(&$urls, $rootUrl, $fileBasePath, $dir)
 {
@@ -1068,8 +1158,8 @@ function gather_html_file_in_directory(&$urls, $rootUrl, $fileBasePath, $dir)
 			if (is_dir($path))
 			{
 				/*
-				 * ディレクトリ名の先頭が.または_で始まっている
-				 * またはrs-vendorなら何もしない
+                 * Ignore directories whose names begin with . or _.
+                 * Ignore rs-vendor as well.
 				 */
 				if (
 					$file !== '' &&
@@ -1084,7 +1174,7 @@ function gather_html_file_in_directory(&$urls, $rootUrl, $fileBasePath, $dir)
 			{
 				if ($file !== "template.html" && $file !== "sidebar.md")
 				{
-					// .htmlファイルを記録
+                    // Register .html files.
 					$path_info = pathinfo($path);
 					if (array_key_exists('extension', $path_info))
 					{
@@ -1109,7 +1199,7 @@ function gather_html_file_in_directory(&$urls, $rootUrl, $fileBasePath, $dir)
 
 ////////////////////////////////////////////////////////////////////////////////
 /*
-ページ一覧HTMLを生成
+Generate the page list HTML.
 */
 function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
 {
@@ -1121,7 +1211,7 @@ function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
 		throw new RuntimeException("Cannot open to file. '" . $outputPath . "'");
 	}
 
-	$html = "<h1>ページの一覧</h1>";
+	$html = "<h1>List of Pages</h1>";
 	foreach ($pages as $page)
 	{
 		$html .= '<li><a href="' . $page->getNetworkPath() . '">' . $page->getTitle() . '</a></li>';
@@ -1132,9 +1222,9 @@ function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
 	$sidebar_html = '';
 	if ($sidebar_markdown_file_name != NULL)
 	{
-		$sidebar_html = parse_md($sidebar_markdown_file_name, $pages);
+		$sidebar_html = parse_md($sidebar_markdown_file_name, $pages, $outputPath);
 	}
-	$html = template($template_file_name, 'ページ一覧', $html, $sidebar_html);
+	$html = template($template_file_name, 'List of Pages', $html, $sidebar_html);
 
 	if (fwrite($out, $html) === false)
 	{
@@ -1147,37 +1237,44 @@ function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
 }
 
 /*
-カテゴリ別HTMLを生成
+Generate category HTML pages.
 */
 function generate_category_pages_html($pages, $fileBasePath, $networkBasePath)
 {
 	$pageListDirectory = prepare_page_list_directory($fileBasePath);
 	$categories = build_category_page_map($pages);
-	$template_file_name = resolve_template_path($fileBasePath);
-	$sidebar_markdown_file_name = resolve_sidebar_path($fileBasePath);
-	$sidebar_html = '';
-	if ($sidebar_markdown_file_name != NULL)
-	{
-		$sidebar_html = parse_md($sidebar_markdown_file_name, $pages);
-	}
 
 	foreach ($categories as $category => $category_pages)
 	{
+		$categoryPageSourceDir = $fileBasePath;
+		if (count($category_pages) > 0)
+		{
+			$categoryPageSourceDir = dirname($category_pages[0]->getFilePath());
+		}
+
 		$outputPath = $pageListDirectory . DIRECTORY_SEPARATOR . get_category_page_file_name($category);
+		$template_file_name = resolve_template_path($categoryPageSourceDir);
+		$sidebar_markdown_file_name = resolve_sidebar_path($categoryPageSourceDir);
+		$sidebar_html = '';
+		if ($sidebar_markdown_file_name != NULL)
+		{
+			$sidebar_html = parse_md($sidebar_markdown_file_name, $pages, $outputPath);
+		}
+
 		$out = fopen($outputPath, 'wt');
 		if (!$out)
 		{
 			throw new RuntimeException("Cannot open to file. '" . $outputPath . "'");
 		}
 
-		$body = "<h1>カテゴリ: " . htmlspecialchars($category, ENT_QUOTES, 'UTF-8') . "</h1>";
+		$body = "<h1>Category: " . htmlspecialchars($category, ENT_QUOTES, 'UTF-8') . "</h1>";
 		$body .= "<ul>";
 		foreach ($category_pages as $page)
 		{
 			$body .= '<li><a href="' . $page->getNetworkPath() . '">' . htmlspecialchars($page->getTitle(), ENT_QUOTES, 'UTF-8') . '</a></li>';
 		}
 		$body .= "</ul>";
-		$html = template($template_file_name, 'カテゴリ: ' . $category, $body, $sidebar_html);
+		$html = template($template_file_name, 'Category: ' . $category, $body, $sidebar_html);
 
 		if (fwrite($out, $html) === false)
 		{
@@ -1195,23 +1292,23 @@ function generate_category_pages_html($pages, $fileBasePath, $networkBasePath)
 main
 */
 try {
-	// ファイルのベースパスを取得
+    // Get the filesystem base path.
 	$fileBasePath = realpath(__DIR__ . DIRECTORY_SEPARATOR . '..');
 
-	// ネットワークのベースパスを取得
+    // Get the network base path.
 	{
-		// 現在のURLを取得
+        // Get the current URL.
 		$scheme = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
 		$host = $_SERVER['HTTP_HOST'];
 		$requestUri = $_SERVER['REQUEST_URI'];
 		$rootUrl = $scheme . "://" . $host;
 		$currentUrl = $rootUrl . $requestUri;
 
-		// パス部分を分解
+        // Parse the path portion.
 		$path = parse_url($currentUrl, PHP_URL_PATH);
 		$pathSegments = explode('/', trim($path, '/'));
 
-		// 一つ下のパスを取得
+        // Get one parent path.
 		$networkBasePath = '';
 		$segument_count = count($pathSegments);
 		for ($i = 0; $i < $segument_count - 1; $i += 1)
@@ -1221,32 +1318,32 @@ try {
 		}
 	}
 
-	// ページの情報を回収
+    // Collect page information.
 	$pages = [];
 	gather_markdown_info_in_directory($pages, $networkBasePath, $fileBasePath, '');
 
-	// htmlファイルを生成
+    // Generate HTML files.
 	build_html_from_markdown($pages);
 
-	// ページ一覧ページを生成
+    // Generate the page list.
 	generate_page_list_html($pages, $fileBasePath, $networkBasePath);
 
-	// カテゴリ別ページを生成
+    // Generate category pages.
 	generate_category_pages_html($pages, $fileBasePath, $networkBasePath);
 
 	echo render_parse_warnings();
 
-	// htmlページを回収
+    // Collect HTML page URLs.
 	$urls = [];
 	gather_html_file_in_directory($urls, $rootUrl . $networkBasePath, $fileBasePath, '');
 
-	// urlの短い順に並び変え
+    // Sort by shorter URL first.
 	usort($urls, function($a, $b)
 	{
 		return strlen($a) - strlen($b);
 	});
 
-	// サイトマップを出力
+    // Write the sitemap.
 	{
 		$sitemap  = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
 		$sitemap .= "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
@@ -1260,7 +1357,7 @@ try {
 		$sitemap .= "</urlset>";
 		unset($urls);
 
-		// ページ一覧ページを生成
+        // Add the page list page.
 		$out = fopen($fileBasePath . '/sitemap.xml', 'wt');
 		if ($out)
 		{

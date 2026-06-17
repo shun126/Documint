@@ -1,23 +1,15 @@
-name: Deploy docs to GitHub Pages
+name: Build docs site
 
 on:
-  push:
-    branches:
-      - main
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   build:
-    name: Build Pages artifact
+    name: Build docs site
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,22 +25,10 @@ jobs:
           fi
           php -v
 
-      - name: Configure GitHub Pages
-        id: pages
-        uses: actions/configure-pages@v5
-
       - name: Build docs with Documint
         shell: bash
-        env:
-          PAGES_BASE_URL: ${{ steps.pages.outputs.base_url }}
         run: |
           set -euo pipefail
-
-          repo_name="${GITHUB_REPOSITORY#*/}"
-          pages_base_path="/${repo_name}"
-          if [[ "${repo_name}" == *.github.io ]]; then
-            pages_base_path=""
-          fi
 
           build_source="${RUNNER_TEMP}/documint-source"
           site_dir="${GITHUB_WORKSPACE}/_site"
@@ -67,11 +47,7 @@ jobs:
           server_pid="$!"
           trap 'kill "${server_pid}" 2>/dev/null || true' EXIT
 
-          request_path="${pages_base_path}/index.php"
-          if [[ -z "${request_path}" ]]; then
-            request_path="/index.php"
-          fi
-          build_url="http://127.0.0.1:8000${request_path}"
+          build_url="http://127.0.0.1:8000/index.php"
 
           for attempt in {1..20}; do
             if curl --fail --silent --show-error "${build_url}" --output "${response_file}"; then
@@ -96,19 +72,6 @@ jobs:
           cp -R "${build_source}/_page_list" "${site_dir}/_page_list"
           cp "${build_source}/sitemap.xml" "${site_dir}/sitemap.xml"
 
-          pages_base_url="${PAGES_BASE_URL%/}"
-          local_base_url="http://127.0.0.1:8000${pages_base_path}"
-          if [[ -n "${pages_base_url}" ]]; then
-            sed -i "s|${local_base_url}|${pages_base_url}|g" "${site_dir}/sitemap.xml"
-          fi
-
-          if [[ -n "${pages_base_path}" ]]; then
-            find "${site_dir}" -type f -name '*.html' -print0 | xargs -0 sed -i \
-              -e "s|href=\"/\"|href=\"${pages_base_path}/\"|g" \
-              -e "s|href=\"/index.html\"|href=\"${pages_base_path}/index.html\"|g" \
-              -e "s|href=\"/_page_list/|href=\"${pages_base_path}/_page_list/|g"
-          fi
-
           cat > "${site_dir}/index.html" <<'HTML'
           <!doctype html>
           <html lang="en">
@@ -119,7 +82,7 @@ jobs:
             <title>Documint</title>
           </head>
           <body>
-            <p><a href="docs/index.html">Open the Documint tutorial</a></p>
+            <p><a href="docs/index.html">Open the Documint documentation</a></p>
           </body>
           </html>
           HTML
@@ -127,23 +90,13 @@ jobs:
           test -f "${site_dir}/docs/index.html"
           test -f "${site_dir}/docs/markdown-basics.html"
           test -f "${site_dir}/docs/advanced-features.html"
+          test -f "${site_dir}/docs/category-workflow.html"
+          test -f "${site_dir}/docs/feature-reference.html"
           test -f "${site_dir}/_page_list/page_list.html"
           test -f "${site_dir}/sitemap.xml"
 
-      - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v4
+      - name: Upload built site artifact
+        uses: actions/upload-artifact@v4
         with:
+          name: documint-site
           path: _site
-
-  deploy:
-    name: Deploy to GitHub Pages
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    needs: build
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

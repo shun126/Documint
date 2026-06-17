@@ -1,7 +1,8 @@
 {{title Advanced Features}}
-{{category Reference, Guide}}
 
 # Advanced Features
+
+![Advanced Features](images/advanced-features.png)
 
 This page provides focused examples for Documint-specific syntax.
 
@@ -36,6 +37,13 @@ Page --> CategoryPage
 <p>This content is emitted directly from a source block.</p>
 ```
 
+```cpp
+void main()
+{
+  printf("Hellow world");
+}
+```
+
 ## Raw HTML Block
 
 {{html}}
@@ -45,5 +53,7 @@ Page --> CategoryPage
 {{/html}}
 
 ## Category Links
+{{category_list size=3}}
 
-{{category Reference, Guide}}
+----
+{{category Reference, Guide, Moriya}}
