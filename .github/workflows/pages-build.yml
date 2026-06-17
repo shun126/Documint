@@ -1,0 +1,102 @@
+name: Build docs site
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build docs site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Ensure PHP is available
+        run: |
+          if ! command -v php >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y php-cli
+          fi
+          php -v
+
+      - name: Build docs with Documint
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          build_source="${RUNNER_TEMP}/documint-source"
+          site_dir="${GITHUB_WORKSPACE}/_site"
+          response_file="${RUNNER_TEMP}/documint-build-response.html"
+          server_log="${RUNNER_TEMP}/documint-server.log"
+
+          rm -rf "${build_source}" "${site_dir}"
+          mkdir -p "${build_source}" "${site_dir}/docs"
+
+          test -f _documint/parsedown/Parsedown.php
+
+          cp -R _documint "${build_source}/_documint"
+          cp -R docs "${build_source}/docs"
+
+          php -S 127.0.0.1:8000 -t "${build_source}" "${build_source}/_documint/index.php" >"${server_log}" 2>&1 &
+          server_pid="$!"
+          trap 'kill "${server_pid}" 2>/dev/null || true' EXIT
+
+          build_url="http://127.0.0.1:8000/index.php"
+
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error "${build_url}" --output "${response_file}"; then
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ ! -s "${response_file}" ]]; then
+            echo "Documint did not return a response."
+            cat "${server_log}"
+            exit 1
+          fi
+
+          if grep -q "ERROR!!!" "${response_file}"; then
+            cat "${response_file}"
+            cat "${server_log}"
+            exit 1
+          fi
+
+          cp -R "${build_source}/docs/." "${site_dir}/docs/"
+          cp -R "${build_source}/_page_list" "${site_dir}/_page_list"
+          cp "${build_source}/sitemap.xml" "${site_dir}/sitemap.xml"
+
+          cat > "${site_dir}/index.html" <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta http-equiv="refresh" content="0; url=docs/index.html">
+            <title>Documint</title>
+          </head>
+          <body>
+            <p><a href="docs/index.html">Open the Documint documentation</a></p>
+          </body>
+          </html>
+          HTML
+
+          test -f "${site_dir}/docs/index.html"
+          test -f "${site_dir}/docs/markdown-basics.html"
+          test -f "${site_dir}/docs/advanced-features.html"
+          test -f "${site_dir}/docs/category-workflow.html"
+          test -f "${site_dir}/docs/feature-reference.html"
+          test -f "${site_dir}/_page_list/page_list.html"
+          test -f "${site_dir}/sitemap.xml"
+
+      - name: Upload built site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: documint-site
+          path: _site
