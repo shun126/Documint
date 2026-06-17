@@ -1217,14 +1217,8 @@ function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
 		$html .= '<li><a href="' . $page->getNetworkPath() . '">' . $page->getTitle() . '</a></li>';
 	}
 
-	$pageListSourceDir = $fileBasePath;
-	if (count($pages) > 0)
-	{
-		$pageListSourceDir = dirname($pages[0]->getFilePath());
-	}
-
-	$template_file_name = resolve_template_path($pageListSourceDir);
-	$sidebar_markdown_file_name = resolve_sidebar_path($pageListSourceDir);
+	$template_file_name = resolve_template_path($fileBasePath);
+	$sidebar_markdown_file_name = resolve_sidebar_path($fileBasePath);
 	$sidebar_html = '';
 	if ($sidebar_markdown_file_name != NULL)
 	{
