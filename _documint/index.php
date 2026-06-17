@@ -39,6 +39,15 @@ require_once "parsedown/Parsedown.php";
  */
 class Markdown extends Parsedown
 {
+	private $sourcePath;
+	private $outputPath;
+
+	public function __construct($sourcePath = NULL, $outputPath = NULL)
+	{
+		$this->sourcePath = $sourcePath;
+		$this->outputPath = $outputPath;
+	}
+
 	/**
      * Override image handling.
 	 */
@@ -95,17 +104,11 @@ class Markdown extends Parsedown
 		{
 			if ($Excerpt["element"]["name"] === "a")
 			{
-				$url = parse_url($Excerpt["element"]['attributes']['href']);
-				if (array_key_exists('path', $url) && strpos($url['path'], '.md') !== false)
-				{
-					$path = pathinfo($url['path']);
-					if (array_key_exists('extension', $path) && strcasecmp($path['extension'], "md") == 0)
-					{
-                        // Convert .md links to .html links.
-						$newPath = $path['dirname'] . DIRECTORY_SEPARATOR . $path['filename'] . ".html";
-						$Excerpt["element"]['attributes']['href'] = $newPath;
-					}
-				}
+				$Excerpt["element"]['attributes']['href'] = rewrite_markdown_link_to_html(
+					$Excerpt["element"]['attributes']['href'],
+					$this->sourcePath,
+					$this->outputPath
+				);
 			}
 		}
 		return $Excerpt ;
@@ -223,6 +226,84 @@ function build_relative_link_path($fromFilePath, $toFilePath)
 	}
 
 	return implode('/', $relativeParts);
+}
+
+function is_external_link($href)
+{
+	return preg_match('/^[a-z][a-z0-9+.-]*:/i', $href) === 1 || strpos($href, '//') === 0 || strpos($href, '#') === 0;
+}
+
+function normalize_file_path($path)
+{
+	$path = str_replace('\\', '/', $path);
+	$prefix = '';
+	if (preg_match('/^[A-Za-z]:\//', $path) === 1)
+	{
+		$prefix = substr($path, 0, 3);
+		$path = substr($path, 3);
+	}
+	else if (strpos($path, '/') === 0)
+	{
+		$prefix = '/';
+		$path = substr($path, 1);
+	}
+
+	$parts = [];
+	foreach (explode('/', $path) as $part)
+	{
+		if ($part === '' || $part === '.')
+			continue;
+		if ($part === '..')
+		{
+			if (!empty($parts) && end($parts) !== '..')
+				array_pop($parts);
+			else
+				$parts[] = $part;
+			continue;
+		}
+		$parts[] = $part;
+	}
+
+	return $prefix . implode('/', $parts);
+}
+
+function rewrite_markdown_link_to_html($href, $sourcePath, $outputPath)
+{
+	if ($sourcePath === NULL || $outputPath === NULL || $href === '' || is_external_link($href))
+		return $href;
+
+	$url = parse_url($href);
+	if ($url === false || !array_key_exists('path', $url) || $url['path'] === '')
+		return $href;
+	if (array_key_exists('scheme', $url) || array_key_exists('host', $url))
+		return $href;
+
+	$path = pathinfo($url['path']);
+	if (!array_key_exists('extension', $path) || strcasecmp($path['extension'], 'md') !== 0)
+		return $href;
+
+	if (strpos($url['path'], '/') === 0)
+	{
+		$linkPath = ($path['dirname'] === '/' ? '/' : $path['dirname'] . '/') . $path['filename'] . '.html';
+		if (array_key_exists('query', $url))
+			$linkPath .= '?' . $url['query'];
+		if (array_key_exists('fragment', $url))
+			$linkPath .= '#' . $url['fragment'];
+		return $linkPath;
+	}
+
+	$sourceDirectory = dirname($sourcePath);
+	$targetMarkdownPath = normalize_file_path($sourceDirectory . DIRECTORY_SEPARATOR . $url['path']);
+	$targetPathInfo = pathinfo($targetMarkdownPath);
+	$targetHtmlPath = $targetPathInfo['dirname'] . DIRECTORY_SEPARATOR . $targetPathInfo['filename'] . '.html';
+	$linkPath = build_relative_link_path($outputPath, $targetHtmlPath);
+
+	if (array_key_exists('query', $url))
+		$linkPath .= '?' . $url['query'];
+	if (array_key_exists('fragment', $url))
+		$linkPath .= '#' . $url['fragment'];
+
+	return $linkPath;
 }
 
 /*
@@ -425,9 +506,9 @@ function mermaid($file, &$lineNumber)
 /**
  * Convert Markdown to HTML.
  */
-function markdown_to_html($source)
+function markdown_to_html($source, $sourcePath = NULL, $outputPath = NULL)
 {
-	$markdown = new Markdown();
+	$markdown = new Markdown($sourcePath, $outputPath);
 	$markdown->setMarkupEscaped(false);
 	return $markdown->text($source);
 }
@@ -508,7 +589,7 @@ function source($file, &$lineNumber)
 /**
  * Parse Markdown and return HTML.
  */
-function parse_md($path, $pages)
+function parse_md($path, $pages, $outputPath = NULL)
 {
 	$markdown = fopen($path, 'rt');
 	if ($markdown === false)
@@ -555,7 +636,7 @@ function parse_md($path, $pages)
 		}
 		else if ($token === '{{html}}')
 		{
-			$head .= markdown_to_html($body);
+			$head .= markdown_to_html($body, $path, $outputPath);
 			$body = '';
 			$html = '';
 			$htmlBlockStartLine = $lineNumber;
@@ -591,7 +672,7 @@ function parse_md($path, $pages)
 		else if (preg_match('/^\{\{category\s+(.+)\}\}$/u', $token, $match))
 		{
 			$categories = split_category_names($match[1]);
-			$body .= build_category_links_markdown($categories, $path);
+			$body .= build_category_links_markdown($categories, $outputPath !== NULL ? $outputPath : $path);
 		}
 		else if (preg_match('/^\{\{title\s+(.+)\}\}$/u', $token))
 		{
@@ -599,25 +680,25 @@ function parse_md($path, $pages)
 		}
 		else if ($token === "```source")
 		{
-			$head .= markdown_to_html($body);
+			$head .= markdown_to_html($body, $path, $outputPath);
 			$head .= source($markdown, $lineNumber);
 			$body = '';
 		}
 		else if ($token === "```mermaid")
 		{
-			$head .= markdown_to_html($body);
+			$head .= markdown_to_html($body, $path, $outputPath);
 			$head .= mermaid($markdown, $lineNumber);
 			$body = '';
 		}
 		else if ($token === "```plantuml")
 		{
-			$head .= markdown_to_html($body);
+			$head .= markdown_to_html($body, $path, $outputPath);
 			$head .= plantuml($markdown, "```", $lineNumber);
 			$body = '';
 		}
 		else if ($token === "@startuml")
 		{
-			$head .= markdown_to_html($body);
+			$head .= markdown_to_html($body, $path, $outputPath);
 			$head .= plantuml($markdown, "@enduml", $lineNumber);
 			$body = '';
 		}
@@ -657,7 +738,7 @@ function parse_md($path, $pages)
 					// html
 					if ($extension === 'html' || $extension === 'htm')
 					{
-						$head .= markdown_to_html($body);
+						$head .= markdown_to_html($body, $path, $outputPath);
 						$head .= $inner_contents;
 						$body = '';
 					}
@@ -688,7 +769,7 @@ function parse_md($path, $pages)
 		throw new RuntimeException("Unclosed {{html}} block. '" . $path . "' line " . $htmlBlockStartLine);
 	}
 
-	return $head . markdown_to_html($body);
+	return $head . markdown_to_html($body, $path, $outputPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1030,13 +1111,13 @@ function build_html_from_markdown($pages)
 			$sidebar_markdown_file_name = resolve_sidebar_path($filepath['dirname']);
 
             // Convert Markdown to HTML.
-			$html = parse_md($page->getFilePath(), $pages);
+			$html = parse_md($page->getFilePath(), $pages, $outputHtmlPath);
 
             // Apply the HTML template.
 			$sidebar_html = '';
 			if ($sidebar_markdown_file_name != NULL)
 			{
-				$sidebar_html = parse_md($sidebar_markdown_file_name, $pages);
+				$sidebar_html = parse_md($sidebar_markdown_file_name, $pages, $outputHtmlPath);
 			}
 			$html = template($template_file_name, $page->getTitle(), $html, $sidebar_html);
 
@@ -1147,7 +1228,7 @@ function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
 	$sidebar_html = '';
 	if ($sidebar_markdown_file_name != NULL)
 	{
-		$sidebar_html = parse_md($sidebar_markdown_file_name, $pages);
+		$sidebar_html = parse_md($sidebar_markdown_file_name, $pages, $outputPath);
 	}
 	$html = template($template_file_name, 'List of Pages', $html, $sidebar_html);
 
@@ -1177,15 +1258,15 @@ function generate_category_pages_html($pages, $fileBasePath, $networkBasePath)
 			$categoryPageSourceDir = dirname($category_pages[0]->getFilePath());
 		}
 
+		$outputPath = $pageListDirectory . DIRECTORY_SEPARATOR . get_category_page_file_name($category);
 		$template_file_name = resolve_template_path($categoryPageSourceDir);
 		$sidebar_markdown_file_name = resolve_sidebar_path($categoryPageSourceDir);
 		$sidebar_html = '';
 		if ($sidebar_markdown_file_name != NULL)
 		{
-			$sidebar_html = parse_md($sidebar_markdown_file_name, $pages);
+			$sidebar_html = parse_md($sidebar_markdown_file_name, $pages, $outputPath);
 		}
 
-		$outputPath = $pageListDirectory . DIRECTORY_SEPARATOR . get_category_page_file_name($category);
 		$out = fopen($outputPath, 'wt');
 		if (!$out)
 		{
