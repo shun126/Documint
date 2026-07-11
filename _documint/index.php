@@ -587,15 +587,97 @@ function source($file, &$lineNumber)
 }
 
 /**
+ * Validate a required input file before reading it.
+ */
+function validate_input_file($path, $description = 'Input file')
+{
+	if (!is_string($path) || trim($path) === '')
+	{
+		throw new RuntimeException($description . ' path is not specified.');
+	}
+	if (!file_exists($path))
+	{
+		throw new RuntimeException($description . " not found. '" . $path . "'");
+	}
+	if (!is_file($path))
+	{
+		throw new RuntimeException($description . " is not a file. '" . $path . "'");
+	}
+	if (!is_readable($path))
+	{
+		throw new RuntimeException($description . " is not readable. '" . $path . "'");
+	}
+}
+
+function open_input_file($path, $description = 'Input file')
+{
+	validate_input_file($path, $description);
+	$handle = @fopen($path, 'rt');
+	if ($handle === false)
+	{
+		throw new RuntimeException($description . " cannot be opened. '" . $path . "'");
+	}
+	return $handle;
+}
+
+function write_output_file($path, $contents)
+{
+	$out = @fopen($path, 'wt');
+	if ($out === false)
+	{
+		throw new RuntimeException("Cannot open output file. '" . $path . "'");
+	}
+
+	try
+	{
+		$length = strlen($contents);
+		$written = 0;
+		while ($written < $length)
+		{
+			$result = @fwrite($out, substr($contents, $written));
+			if ($result === false || $result === 0)
+			{
+				throw new RuntimeException("Cannot write to output file. '" . $path . "'");
+			}
+			$written += $result;
+		}
+	}
+	finally
+	{
+		fclose($out);
+	}
+}
+
+function display_generation_error($e)
+{
+	echo '<div class="alert alert-danger" role="alert"><strong>ERROR:</strong> ';
+	echo htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
+	echo '</div>';
+}
+
+/**
+ * Mask inline code spans while preserving byte offsets in the original line.
+ */
+function mask_inline_code($text)
+{
+	$masked = preg_replace_callback(
+		'/(?<!`)(`+)(?!`)(.*?)\1(?!`)/u',
+		function($match)
+		{
+			return str_repeat(' ', strlen($match[0]));
+		},
+		$text
+	);
+
+	return $masked !== NULL ? $masked : $text;
+}
+
+/**
  * Parse Markdown and return HTML.
  */
 function parse_md($path, $pages, $outputPath = NULL)
 {
-	$markdown = fopen($path, 'rt');
-	if ($markdown === false)
-	{
-		throw new RuntimeException("file not found. '" . $path . "'");
-	}
+	$markdown = open_input_file($path, 'Markdown file');
 
 	$head = '';
 	$body = '';
@@ -715,7 +797,8 @@ function parse_md($path, $pages, $outputPath = NULL)
             .html and .htm files are included as HTML fragments.
             Other files are included as Markdown.
 			*/
-			if (preg_match('{{{\s[0-9a-zA-Z./]+\s}}}', $token, $match))
+			$include_search_token = mask_inline_code($token);
+			if (preg_match('{{{\s[0-9a-zA-Z./]+\s}}}', $include_search_token, $match))
 			{
                 // Remove the outer braces.
 				$length = strlen($match[0]) - 4;
@@ -729,11 +812,12 @@ function parse_md($path, $pages, $outputPath = NULL)
                 // Resolve the included file path.
 				$directory = pathinfo($path, PATHINFO_DIRNAME) . DIRECTORY_SEPARATOR;
 				$contents_path = $directory . $filename;
-				if (is_file($contents_path))
+				try
 				{
-					$inner_contents = file_get_contents($directory . $filename);
-					if ($inner_contents == false)
-						throw new RuntimeException("file open filed. '" . $directory . $filename . "'");
+					validate_input_file($contents_path, 'Included file');
+					$inner_contents = @file_get_contents($contents_path);
+					if ($inner_contents === false)
+						throw new RuntimeException("Included file cannot be opened. '" . $contents_path . "'");
 
 					// html
 					if ($extension === 'html' || $extension === 'htm')
@@ -753,6 +837,11 @@ function parse_md($path, $pages, $outputPath = NULL)
 					{
 						$body .= $inner_contents;
 					}
+				}
+				catch (RuntimeException $e)
+				{
+					$include_error = new RuntimeException($e->getMessage() . " Referenced from '" . $path . "' line " . $lineNumber, 0, $e);
+					display_generation_error($include_error);
 				}
 			}
 			else
@@ -780,11 +869,7 @@ Get the title from {{title ...}}, the first heading, or the file name.
 */
 function get_title_from_markdown($path)
 {
-	$markdown = fopen($path, 'rt');
-	if ($markdown === false)
-	{
-		throw new RuntimeException("Markdown file not found. '" . $path . "'");
-	}
+	$markdown = open_input_file($path, 'Markdown file');
 
 	$title = pathinfo($path, PATHINFO_FILENAME);
 	$heading_title = NULL;
@@ -828,11 +913,7 @@ Get categories from a Markdown file.
 */
 function get_categories_from_markdown($path)
 {
-	$markdown = fopen($path, 'rt');
-	if ($markdown === false)
-	{
-		throw new RuntimeException("Markdown file not found. '" . $path . "'");
-	}
+	$markdown = open_input_file($path, 'Markdown file');
 
 	$categories = [];
 	while (($line = fgets($markdown)))
@@ -934,7 +1015,7 @@ function build_category_list_markdown($pages, $filter, $heading_level = 2)
 function template($filename, $title, $body, $sidebar_html)
 {
 	$html = '';
-	$fh = fopen($filename, "rt");
+	$fh = open_input_file($filename, 'Template file');
 	while (($line = fgets($fh)))
 	{
 		if(preg_match('/{{[a-z_]+}}/u', $line, $match))
@@ -1000,14 +1081,21 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 				$path_info = pathinfo($path);
 				if (array_key_exists('extension', $path_info) && $path_info['extension'] === 'md')
 				{
-					$network_path = $networkBasePath . $dir . '/' . $path_info['filename'] . '.html';
-					if (DIRECTORY_SEPARATOR === "\\")
+					try
 					{
-						$network_path = str_replace(DIRECTORY_SEPARATOR, "/", $network_path);
+						$network_path = $networkBasePath . $dir . '/' . $path_info['filename'] . '.html';
+						if (DIRECTORY_SEPARATOR === "\\")
+						{
+							$network_path = str_replace(DIRECTORY_SEPARATOR, "/", $network_path);
+						}
+						$title = get_title_from_markdown($path);
+						$categories = get_categories_from_markdown($path);
+						$pages[] = new PageInfomation($title, $network_path, $path, $categories);
 					}
-					$title = get_title_from_markdown($path);
-					$categories = get_categories_from_markdown($path);
-					$pages[] = new PageInfomation($title, $network_path, $path, $categories);
+					catch (Throwable $e)
+					{
+						display_generation_error($e);
+					}
 				}
 			}
 		}
@@ -1099,39 +1187,30 @@ function build_html_from_markdown($pages)
 		echo "<td>" . $page->getTitle() . "</td><td><a href=\"" . $page->getNetworkPath() . "\">" . $page->getNetworkPath() . "</a></td><td>" . $page->getFilePath() . "</td>";
 		echo "</tr>";
 
-		$filepath = pathinfo($page->getFilePath());
-		$outputHtmlPath = $filepath['dirname'] . DIRECTORY_SEPARATOR . $filepath['filename'] . '.html';
-		$out = fopen($outputHtmlPath, 'wt');
-		if ($out)
+		try
 		{
-            // Resolve template.html.
-			$template_file_name = resolve_template_path($filepath['dirname']);
+			$filepath = pathinfo($page->getFilePath());
+			$outputHtmlPath = $filepath['dirname'] . DIRECTORY_SEPARATOR . $filepath['filename'] . '.html';
 
-            // Resolve sidebar Markdown.
+            // Resolve and validate all input before creating the output file.
+			$template_file_name = resolve_template_path($filepath['dirname']);
+			validate_input_file($template_file_name, 'Template file');
+
 			$sidebar_markdown_file_name = resolve_sidebar_path($filepath['dirname']);
 
-            // Convert Markdown to HTML.
 			$html = parse_md($page->getFilePath(), $pages, $outputHtmlPath);
 
-            // Apply the HTML template.
 			$sidebar_html = '';
 			if ($sidebar_markdown_file_name != NULL)
 			{
 				$sidebar_html = parse_md($sidebar_markdown_file_name, $pages, $outputHtmlPath);
 			}
 			$html = template($template_file_name, $page->getTitle(), $html, $sidebar_html);
-
-            // Write the HTML file.
-			if (fwrite($out, $html) === false)
-			{
-				throw new RuntimeException("Cannot write to file. '" . $outputHtmlPath . "'");
-			}
-
-			fclose($out);
+			write_output_file($outputHtmlPath, $html);
 		}
-		else
+		catch (Throwable $e)
 		{
-			throw new RuntimeException("Cannot open to file. '" . $outputHtmlPath . "'");
+			display_generation_error($e);
 		}
 	}
 
@@ -1203,13 +1282,11 @@ Generate the page list HTML.
 */
 function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
 {
+	$template_file_name = resolve_template_path($fileBasePath);
+	validate_input_file($template_file_name, 'Template file');
+
 	$pageListDirectory = prepare_page_list_directory($fileBasePath);
 	$outputPath = $pageListDirectory . DIRECTORY_SEPARATOR . 'page_list.html';
-	$out = fopen($outputPath, 'wt');
-	if (!$out)
-	{
-		throw new RuntimeException("Cannot open to file. '" . $outputPath . "'");
-	}
 
 	$html = "<h1>List of Pages</h1>";
 	foreach ($pages as $page)
@@ -1217,7 +1294,6 @@ function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
 		$html .= '<li><a href="' . $page->getNetworkPath() . '">' . $page->getTitle() . '</a></li>';
 	}
 
-	$template_file_name = resolve_template_path($fileBasePath);
 	$sidebar_markdown_file_name = resolve_sidebar_path($fileBasePath);
 	$sidebar_html = '';
 	if ($sidebar_markdown_file_name != NULL)
@@ -1225,13 +1301,7 @@ function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
 		$sidebar_html = parse_md($sidebar_markdown_file_name, $pages, $outputPath);
 	}
 	$html = template($template_file_name, 'List of Pages', $html, $sidebar_html);
-
-	if (fwrite($out, $html) === false)
-	{
-		fclose($out);
-		throw new RuntimeException("Cannot write to file. '" . $outputPath . "'");
-	}
-	fclose($out);
+	write_output_file($outputPath, $html);
 
 	echo 'generate <a href="' . $networkBasePath . '/' . DOCUMINT_PAGE_LIST_DIR_NAME . '/page_list.html">page_list.html</a></br>';
 }
@@ -1246,6 +1316,8 @@ function generate_category_pages_html($pages, $fileBasePath, $networkBasePath)
 
 	foreach ($categories as $category => $category_pages)
 	{
+		try
+		{
 		$categoryPageSourceDir = $fileBasePath;
 		if (count($category_pages) > 0)
 		{
@@ -1254,17 +1326,12 @@ function generate_category_pages_html($pages, $fileBasePath, $networkBasePath)
 
 		$outputPath = $pageListDirectory . DIRECTORY_SEPARATOR . get_category_page_file_name($category);
 		$template_file_name = resolve_template_path($categoryPageSourceDir);
+		validate_input_file($template_file_name, 'Template file');
 		$sidebar_markdown_file_name = resolve_sidebar_path($categoryPageSourceDir);
 		$sidebar_html = '';
 		if ($sidebar_markdown_file_name != NULL)
 		{
 			$sidebar_html = parse_md($sidebar_markdown_file_name, $pages, $outputPath);
-		}
-
-		$out = fopen($outputPath, 'wt');
-		if (!$out)
-		{
-			throw new RuntimeException("Cannot open to file. '" . $outputPath . "'");
 		}
 
 		$body = "<h1>Category: " . htmlspecialchars($category, ENT_QUOTES, 'UTF-8') . "</h1>";
@@ -1275,15 +1342,14 @@ function generate_category_pages_html($pages, $fileBasePath, $networkBasePath)
 		}
 		$body .= "</ul>";
 		$html = template($template_file_name, 'Category: ' . $category, $body, $sidebar_html);
-
-		if (fwrite($out, $html) === false)
-		{
-			fclose($out);
-			throw new RuntimeException("Cannot write to file. '" . $outputPath . "'");
-		}
-		fclose($out);
+		write_output_file($outputPath, $html);
 
 		echo 'generate <a href="' . $networkBasePath . '/' . DOCUMINT_PAGE_LIST_DIR_NAME . '/' . get_category_page_file_name($category) . '">' . htmlspecialchars($category, ENT_QUOTES, 'UTF-8') . '</a></br>';
+		}
+		catch (Throwable $e)
+		{
+			display_generation_error($e);
+		}
 	}
 }
 
@@ -1323,13 +1389,34 @@ try {
 	gather_markdown_info_in_directory($pages, $networkBasePath, $fileBasePath, '');
 
     // Generate HTML files.
-	build_html_from_markdown($pages);
+	try
+	{
+		build_html_from_markdown($pages);
+	}
+	catch (Throwable $e)
+	{
+		display_generation_error($e);
+	}
 
     // Generate the page list.
-	generate_page_list_html($pages, $fileBasePath, $networkBasePath);
+	try
+	{
+		generate_page_list_html($pages, $fileBasePath, $networkBasePath);
+	}
+	catch (Throwable $e)
+	{
+		display_generation_error($e);
+	}
 
     // Generate category pages.
-	generate_category_pages_html($pages, $fileBasePath, $networkBasePath);
+	try
+	{
+		generate_category_pages_html($pages, $fileBasePath, $networkBasePath);
+	}
+	catch (Throwable $e)
+	{
+		display_generation_error($e);
+	}
 
 	echo render_parse_warnings();
 
@@ -1358,20 +1445,19 @@ try {
 		unset($urls);
 
         // Add the page list page.
-		$out = fopen($fileBasePath . '/sitemap.xml', 'wt');
-		if ($out)
+		try
 		{
-			if (fwrite($out, $sitemap) === false)
-			{
-				throw new RuntimeException("Cannot write to file. '" . $fileBasePath . "/sitemap.xml'");
-			}
+			write_output_file($fileBasePath . '/sitemap.xml', $sitemap);
 			echo "generate <a href=\"" . $networkBasePath . "/sitemap.xml\">sitemap.xml</a></br>";
+		}
+		catch (Throwable $e)
+		{
+			display_generation_error($e);
 		}
 	}
 
-} catch(Exception $e) {
-	echo("ERROR!!!");
-	echo($e->getMessage());
+} catch(Throwable $e) {
+	display_generation_error($e);
 }
 ?>
 
