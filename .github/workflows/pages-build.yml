@@ -33,7 +33,6 @@ jobs:
           build_source="${RUNNER_TEMP}/documint-source"
           site_dir="${GITHUB_WORKSPACE}/_site"
           response_file="${RUNNER_TEMP}/documint-build-response.html"
-          server_log="${RUNNER_TEMP}/documint-server.log"
 
           rm -rf "${build_source}" "${site_dir}"
           mkdir -p "${build_source}" "${site_dir}/docs"
@@ -43,30 +42,18 @@ jobs:
           cp -R _documint "${build_source}/_documint"
           cp -R docs "${build_source}/docs"
 
-          php -S 127.0.0.1:8000 -t "${build_source}" "${build_source}/_documint/index.php" >"${server_log}" 2>&1 &
-          server_pid="$!"
-          trap 'kill "${server_pid}" 2>/dev/null || true' EXIT
+          php "${build_source}/_documint/index.php" \
+            --mode=site \
+            --root-url=http://localhost \
+            >"${response_file}" 2>&1
 
-          build_url="http://127.0.0.1:8000/index.php"
-
-          for attempt in {1..20}; do
-            if curl --fail --silent --show-error "${build_url}" --output "${response_file}"; then
-              break
-            fi
-            sleep 1
-          done
-
-          if [[ ! -s "${response_file}" ]]; then
-            echo "Documint did not return a response."
-            cat "${server_log}"
-            exit 1
-          fi
-
-          if grep -q "ERROR!!!" "${response_file}"; then
+          if grep -q "<strong>ERROR:</strong>" "${response_file}"; then
             cat "${response_file}"
-            cat "${server_log}"
             exit 1
           fi
+
+          test -d "${build_source}/_page_list"
+          test -f "${build_source}/sitemap.xml"
 
           cp -R "${build_source}/docs/." "${site_dir}/docs/"
           cp -R "${build_source}/_page_list" "${site_dir}/_page_list"
