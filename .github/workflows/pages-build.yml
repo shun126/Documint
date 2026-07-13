@@ -41,9 +41,10 @@ jobs:
 
           cp -R _documint "${build_source}/_documint"
           cp -R docs "${build_source}/docs"
+          cp README.md "${build_source}/README.md"
 
           php "${build_source}/_documint/index.php" \
-            --mode=site \
+            --mode=readme-index \
             --root-url=http://localhost \
             >"${response_file}" 2>&1
 
@@ -59,20 +60,7 @@ jobs:
           cp -R "${build_source}/_page_list" "${site_dir}/_page_list"
           cp "${build_source}/sitemap.xml" "${site_dir}/sitemap.xml"
 
-          cat > "${site_dir}/index.html" <<'HTML'
-          <!doctype html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <meta http-equiv="refresh" content="0; url=docs/index.html">
-            <title>Documint</title>
-          </head>
-          <body>
-            <p><a href="docs/index.html">Open the Documint documentation</a></p>
-          </body>
-          </html>
-          HTML
+          cp "${build_source}/index.html" "${site_dir}/index.html"
 
           test -f "${site_dir}/docs/index.html"
           test -f "${site_dir}/docs/markdown-basics.html"
@@ -81,6 +69,7 @@ jobs:
           test -f "${site_dir}/docs/feature-reference.html"
           test -f "${site_dir}/_page_list/page_list.html"
           test -f "${site_dir}/sitemap.xml"
+          test -f "${site_dir}/index.html"
 
       - name: Upload built site artifact
         uses: actions/upload-artifact@v4

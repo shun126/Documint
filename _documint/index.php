@@ -1361,7 +1361,7 @@ function render_generation_form($selectedMode = 'site')
 {
 	$modes = [
 		'site' => '通常生成（すべてのMarkdownをHTML化）',
-		'readme-index' => 'README.mdをindex.htmlとして出力',
+		'readme-index' => '通常生成 + README.mdをindex.htmlとして出力',
 	];
 
 	echo '<form method="post" class="card my-4">';
@@ -1514,15 +1514,10 @@ function generate_readme_index_html($pages, $fileBasePath, $networkBasePath)
 }
 
 /*
-Generate all standard Documint site outputs.
+Generate sitemap.xml from generated HTML files.
 */
-function generate_site_html($pages, $fileBasePath, $networkBasePath, $rootUrl)
+function generate_sitemap_xml($fileBasePath, $networkBasePath, $rootUrl)
 {
-	build_html_from_markdown($pages);
-	generate_page_list_html($pages, $fileBasePath, $networkBasePath);
-	generate_category_pages_html($pages, $fileBasePath, $networkBasePath);
-	echo render_parse_warnings();
-
 	$urls = [];
 	gather_html_file_in_directory($urls, $rootUrl . $networkBasePath, $fileBasePath, '');
 	usort($urls, function($a, $b)
@@ -1547,6 +1542,31 @@ function generate_site_html($pages, $fileBasePath, $networkBasePath, $rootUrl)
 }
 
 /*
+Generate all standard Documint site outputs.
+*/
+function generate_site_html($pages, $fileBasePath, $networkBasePath, $rootUrl)
+{
+	build_html_from_markdown($pages);
+	generate_page_list_html($pages, $fileBasePath, $networkBasePath);
+	generate_category_pages_html($pages, $fileBasePath, $networkBasePath);
+	echo render_parse_warnings();
+	generate_sitemap_xml($fileBasePath, $networkBasePath, $rootUrl);
+}
+
+/*
+Generate all standard Documint site outputs and publish README.md as index.html.
+*/
+function generate_site_html_with_readme_index($pages, $fileBasePath, $networkBasePath, $rootUrl)
+{
+	build_html_from_markdown($pages);
+	generate_page_list_html($pages, $fileBasePath, $networkBasePath);
+	generate_category_pages_html($pages, $fileBasePath, $networkBasePath);
+	generate_readme_index_html($pages, $fileBasePath, $networkBasePath);
+	echo render_parse_warnings();
+	generate_sitemap_xml($fileBasePath, $networkBasePath, $rootUrl);
+}
+
+/*
 Run the selected generation mode.
 */
 function run_generation_mode($mode)
@@ -1560,7 +1580,7 @@ function run_generation_mode($mode)
 
 	if ($normalizedMode === 'readme-index')
 	{
-		generate_readme_index_html($pages, $fileBasePath, $networkBasePath);
+		generate_site_html_with_readme_index($pages, $fileBasePath, $networkBasePath, $rootUrl);
 		return;
 	}
 

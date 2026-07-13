@@ -46,7 +46,7 @@ php _documint/index.php --mode=site
 php _documint/index.php --mode=readme-index
 ```
 
-Use `--mode=site` to generate the full site, or `--mode=readme-index` to generate `index.html` from `README.md`. You can also pass `--root-url` and `--base-path` when sitemap URLs need CI-specific values.
+Use `--mode=site` to generate the full site, or `--mode=readme-index` to generate the full site and additionally publish `README.md` as the root `index.html`. You can also pass `--root-url` and `--base-path` when sitemap URLs need CI-specific values.
 
 ```bash
 php _documint/index.php --mode=site --root-url=https://example.com --base-path=docs
