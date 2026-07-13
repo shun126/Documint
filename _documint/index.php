@@ -1,4 +1,4 @@
-﻿<html lang="en">
+<html lang="en">
 <head>
 	<meta charset="UTF-8" />
 	<meta http-equiv="x-ua-compatible" content="IE=9">
@@ -32,7 +32,7 @@ define('DOCUMINT_PAGE_LIST_DIR_NAME', '_page_list');
 define('DOCUMINT_CATEGORY_FILE_HASH_LENGTH', 16);
 define('DOCUMINT_DEBUG_CATEGORY_LINKS', false);
 
-require_once "parsedown/Parsedown.php";
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'parsedown' . DIRECTORY_SEPARATOR . 'Parsedown.php';
 
 /**
  * Markdown parser class.
@@ -1355,106 +1355,235 @@ function generate_category_pages_html($pages, $fileBasePath, $networkBasePath)
 
 ////////////////////////////////////////////////////////////////////////////////
 /*
-main
+Render the generation mode form.
 */
-try {
-    // Get the filesystem base path.
-	$fileBasePath = realpath(__DIR__ . DIRECTORY_SEPARATOR . '..');
+function render_generation_form($selectedMode = 'site')
+{
+	$modes = [
+		'site' => '通常生成（すべてのMarkdownをHTML化）',
+		'readme-index' => 'README.mdをindex.htmlとして出力',
+	];
 
-    // Get the network base path.
+	echo '<form method="post" class="card my-4">';
+	echo '<div class="card-body">';
+	echo '<h2 class="card-title h4">生成モード</h2>';
+	echo '<p class="card-text">Documintの実行モードを選択してから生成を開始します。</p>';
+	foreach ($modes as $mode => $label)
 	{
-        // Get the current URL.
-		$scheme = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
-		$host = $_SERVER['HTTP_HOST'];
-		$requestUri = $_SERVER['REQUEST_URI'];
-		$rootUrl = $scheme . "://" . $host;
-		$currentUrl = $rootUrl . $requestUri;
+		$id = 'generation_mode_' . str_replace('-', '_', $mode);
+		$checked = $selectedMode === $mode ? ' checked' : '';
+		echo '<div class="form-check">';
+		echo '<input class="form-check-input" type="radio" name="mode" id="' . $id . '" value="' . $mode . '"' . $checked . '>';
+		echo '<label class="form-check-label" for="' . $id . '">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</label>';
+		echo '</div>';
+	}
+	echo '<button type="submit" class="btn btn-primary mt-3">生成開始</button>';
+	echo '</div>';
+	echo '</form>';
+}
 
-        // Parse the path portion.
-		$path = parse_url($currentUrl, PHP_URL_PATH);
-		$pathSegments = explode('/', trim($path, '/'));
+/*
+Normalize a requested generation mode.
+*/
+function normalize_generation_mode($mode)
+{
+	if ($mode === 'readme' || $mode === 'readme-index')
+	{
+		return 'readme-index';
+	}
 
-        // Get one parent path.
-		$networkBasePath = '';
-		$segument_count = count($pathSegments);
-		for ($i = 0; $i < $segument_count - 1; $i += 1)
+	return 'site';
+}
+
+/*
+Get a command-line option value.
+*/
+function get_cli_option_value($optionName, $defaultValue = NULL)
+{
+	global $argv;
+
+	if (!isset($argv) || !is_array($argv))
+	{
+		return $defaultValue;
+	}
+
+	$count = count($argv);
+	for ($i = 1; $i < $count; $i += 1)
+	{
+		$argument = $argv[$i];
+		$prefix = '--' . $optionName . '=';
+		if (strpos($argument, $prefix) === 0)
 		{
-			$networkBasePath .= '/';
-			$networkBasePath .= $pathSegments[$i];
+			return substr($argument, strlen($prefix));
+		}
+		if ($argument === '--' . $optionName && $i + 1 < $count)
+		{
+			return $argv[$i + 1];
 		}
 	}
 
-    // Collect page information.
+	return $defaultValue;
+}
+
+/*
+Build filesystem and URL context for web or CLI execution.
+*/
+function build_execution_context()
+{
+	$fileBasePath = realpath(__DIR__ . DIRECTORY_SEPARATOR . '..');
+	if ($fileBasePath === false)
+	{
+		throw new RuntimeException('Cannot resolve the Documint base path.');
+	}
+
+	if (PHP_SAPI === 'cli')
+	{
+		$rootUrl = get_cli_option_value('root-url', 'http://localhost');
+		$networkBasePath = get_cli_option_value('base-path', '');
+		$networkBasePath = '/' . trim($networkBasePath, '/');
+		if ($networkBasePath === '/')
+		{
+			$networkBasePath = '';
+		}
+
+		return [
+			'file_base_path' => $fileBasePath,
+			'root_url' => rtrim($rootUrl, '/'),
+			'network_base_path' => $networkBasePath,
+		];
+	}
+
+	$scheme = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+	$host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+	$requestUri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/_documint/index.php';
+	$rootUrl = $scheme . '://' . $host;
+	$currentUrl = $rootUrl . $requestUri;
+
+	$path = parse_url($currentUrl, PHP_URL_PATH);
+	$pathSegments = explode('/', trim($path, '/'));
+
+	$networkBasePath = '';
+	$segument_count = count($pathSegments);
+	for ($i = 0; $i < $segument_count - 1; $i += 1)
+	{
+		$networkBasePath .= '/';
+		$networkBasePath .= $pathSegments[$i];
+	}
+
+	return [
+		'file_base_path' => $fileBasePath,
+		'root_url' => $rootUrl,
+		'network_base_path' => $networkBasePath,
+	];
+}
+
+/*
+Collect Markdown page metadata for the current site.
+*/
+function collect_markdown_pages($fileBasePath, $networkBasePath)
+{
 	$pages = [];
 	gather_markdown_info_in_directory($pages, $networkBasePath, $fileBasePath, '');
+	return $pages;
+}
 
-    // Generate HTML files.
-	try
-	{
-		build_html_from_markdown($pages);
-	}
-	catch (Throwable $e)
-	{
-		display_generation_error($e);
-	}
+/*
+Generate README.md as the root index.html file.
+*/
+function generate_readme_index_html($pages, $fileBasePath, $networkBasePath)
+{
+	$readmePath = $fileBasePath . DIRECTORY_SEPARATOR . 'README.md';
+	$outputHtmlPath = $fileBasePath . DIRECTORY_SEPARATOR . 'index.html';
 
-    // Generate the page list.
-	try
-	{
-		generate_page_list_html($pages, $fileBasePath, $networkBasePath);
-	}
-	catch (Throwable $e)
-	{
-		display_generation_error($e);
-	}
+	validate_input_file($readmePath, 'README file');
 
-    // Generate category pages.
-	try
+	$template_file_name = resolve_template_path($fileBasePath);
+	validate_input_file($template_file_name, 'Template file');
+
+	$sidebar_markdown_file_name = resolve_sidebar_path($fileBasePath);
+	$html = parse_md($readmePath, $pages, $outputHtmlPath);
+	$sidebar_html = '';
+	if ($sidebar_markdown_file_name != NULL)
 	{
-		generate_category_pages_html($pages, $fileBasePath, $networkBasePath);
-	}
-	catch (Throwable $e)
-	{
-		display_generation_error($e);
+		$sidebar_html = parse_md($sidebar_markdown_file_name, $pages, $outputHtmlPath);
 	}
 
+	$html = template($template_file_name, get_title_from_markdown($readmePath), $html, $sidebar_html);
+	write_output_file($outputHtmlPath, $html);
+	echo 'generate <a href="' . $networkBasePath . '/index.html">index.html</a></br>';
+}
+
+/*
+Generate all standard Documint site outputs.
+*/
+function generate_site_html($pages, $fileBasePath, $networkBasePath, $rootUrl)
+{
+	build_html_from_markdown($pages);
+	generate_page_list_html($pages, $fileBasePath, $networkBasePath);
+	generate_category_pages_html($pages, $fileBasePath, $networkBasePath);
 	echo render_parse_warnings();
 
-    // Collect HTML page URLs.
 	$urls = [];
 	gather_html_file_in_directory($urls, $rootUrl . $networkBasePath, $fileBasePath, '');
-
-    // Sort by shorter URL first.
 	usort($urls, function($a, $b)
 	{
 		return strlen($a) - strlen($b);
 	});
 
-    // Write the sitemap.
+	$sitemap  = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+	$sitemap .= "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
+	foreach ($urls as $url)
 	{
-		$sitemap  = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-		$sitemap .= "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
-		foreach ($urls as $url)
-		{
-			$sitemap .= "<url>";
-			$sitemap .= "<loc>" . $url . "</loc>";
-			$sitemap .= "</url>";
-			$sitemap .= "\n";
-		}
-		$sitemap .= "</urlset>";
-		unset($urls);
+		$sitemap .= '<url>';
+		$sitemap .= '<loc>' . $url . '</loc>';
+		$sitemap .= '</url>';
+		$sitemap .= "\n";
+	}
+	$sitemap .= '</urlset>';
+	unset($urls);
 
-        // Add the page list page.
-		try
+	write_output_file($fileBasePath . '/sitemap.xml', $sitemap);
+	echo 'generate <a href="' . $networkBasePath . '/sitemap.xml">sitemap.xml</a></br>';
+}
+
+/*
+Run the selected generation mode.
+*/
+function run_generation_mode($mode)
+{
+	$context = build_execution_context();
+	$fileBasePath = $context['file_base_path'];
+	$networkBasePath = $context['network_base_path'];
+	$rootUrl = $context['root_url'];
+	$pages = collect_markdown_pages($fileBasePath, $networkBasePath);
+	$normalizedMode = normalize_generation_mode($mode);
+
+	if ($normalizedMode === 'readme-index')
+	{
+		generate_readme_index_html($pages, $fileBasePath, $networkBasePath);
+		return;
+	}
+
+	generate_site_html($pages, $fileBasePath, $networkBasePath, $rootUrl);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*
+main
+*/
+try {
+	$requestedMode = normalize_generation_mode(PHP_SAPI === 'cli' ? get_cli_option_value('mode', 'site') : (isset($_POST['mode']) ? $_POST['mode'] : 'site'));
+
+	if (PHP_SAPI !== 'cli')
+	{
+		render_generation_form($requestedMode);
+		if ($_SERVER['REQUEST_METHOD'] !== 'POST')
 		{
-			write_output_file($fileBasePath . '/sitemap.xml', $sitemap);
-			echo "generate <a href=\"" . $networkBasePath . "/sitemap.xml\">sitemap.xml</a></br>";
-		}
-		catch (Throwable $e)
-		{
-			display_generation_error($e);
+			return;
 		}
 	}
+
+	run_generation_mode($requestedMode);
 
 } catch(Throwable $e) {
 	display_generation_error($e);
