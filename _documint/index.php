@@ -1637,13 +1637,12 @@ try {
 	if (PHP_SAPI !== 'cli')
 	{
 		render_generation_form($requestedMode);
-		if ($_SERVER['REQUEST_METHOD'] !== 'POST')
-		{
-			return;
-		}
 	}
 
-	run_generation_mode($requestedMode);
+	if (PHP_SAPI === 'cli' || $_SERVER['REQUEST_METHOD'] === 'POST')
+	{
+		run_generation_mode($requestedMode);
+	}
 	if (PHP_SAPI === 'cli' && generation_error_occurred())
 	{
 		exit(1);

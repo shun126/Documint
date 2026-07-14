@@ -27,6 +27,6 @@ Use headings to divide the page into sections. Paragraphs are written as plain t
 
 Links to Markdown files are rewritten to generated HTML paths.
 
-Go back to [Documint](index.md).
+Go back to [Documint](README.md).
 
 {{category Tutorial, GettingStarted, Moriya}}

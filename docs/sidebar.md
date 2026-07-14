@@ -1,6 +1,6 @@
 #### Tutorial
 
-- [Overview](index.md)
+- [Overview](README.md)
 - [Category Workflow](category-workflow.md)
 - [Feature Reference](feature-reference.md)
 - [Markdown Basics](markdown-basics.md)
