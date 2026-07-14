@@ -59,7 +59,7 @@ English: [README.md](README.md)
 
 ## サンプル
 
-機能説明を兼ねたサンプルは [docs/index.md](docs/index.md) にあります。
+機能説明を兼ねたサンプルは [docs/README.md](docs/README.md) にあります。
 
 ## テスト用ブロック
 

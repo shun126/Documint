@@ -21,7 +21,7 @@ Use headings to divide the page into sections. Paragraphs are written as plain t
 | Input | Output |
 | --- | --- |
 | `docs/markdown-basics.md` | `docs/markdown-basics.html` |
-| `README.md` | `README.html` |
+| `README.md` | `README.html` (`site`) or `index.html` (`readme-index`) |
 
 ## Links
 

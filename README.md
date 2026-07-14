@@ -46,13 +46,13 @@ php _documint/index.php --mode=site
 php _documint/index.php --mode=readme-index
 ```
 
-Use `--mode=site` to generate the full site, or `--mode=readme-index` to generate the full site and additionally publish `README.md` as the root `index.html`. You can also pass `--root-url` and `--base-path` when sitemap URLs need CI-specific values.
+Use `--mode=site` to generate each Markdown file as a same-named HTML file. Use `--mode=readme-index` to generate every `README.md` as `index.html` in the same directory instead of `README.html`, while generating all other Markdown files normally. A directory containing both `README.md` and `index.md` is rejected because both would produce `index.html`. You can also pass `--root-url` and `--base-path` when sitemap URLs need CI-specific values.
 
 ```bash
 php _documint/index.php --mode=site --root-url=https://example.com --base-path=docs
 ```
 
-See the tutorial in [docs/index.md](docs/index.md).
+See the tutorial in [docs/README.md](docs/README.md).
 
 ## Template Tags
 

@@ -70,6 +70,8 @@ jobs:
           test -f "${site_dir}/_page_list/page_list.html"
           test -f "${site_dir}/sitemap.xml"
           test -f "${site_dir}/index.html"
+          test ! -e "${site_dir}/README.html"
+          test ! -e "${site_dir}/docs/README.html"
 
       - name: Upload built site artifact
         uses: actions/upload-artifact@v4
