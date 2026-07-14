@@ -40,14 +40,21 @@ jobs:
       - name: Build docs with Documint
         shell: bash
         env:
-          PAGES_BASE_URL: ${{ steps.pages.outputs.base_url }}
+          PAGES_ORIGIN: ${{ steps.pages.outputs.origin }}
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
         run: |
           set -euo pipefail
 
-          repo_name="${GITHUB_REPOSITORY#*/}"
-          pages_base_path="/${repo_name}"
-          if [[ "${repo_name}" == *.github.io ]]; then
+          pages_origin="${PAGES_ORIGIN%/}"
+          if [[ -z "${pages_origin}" ]]; then
+            pages_origin="http://localhost"
+          fi
+
+          pages_base_path="${PAGES_BASE_PATH%/}"
+          if [[ "${pages_base_path}" == "/" ]]; then
             pages_base_path=""
+          elif [[ -n "${pages_base_path}" && "${pages_base_path}" != /* ]]; then
+            pages_base_path="/${pages_base_path}"
           fi
 
           build_source="${RUNNER_TEMP}/documint-source"
@@ -62,30 +69,26 @@ jobs:
           cp -R _documint "${build_source}/_documint"
           cp -R docs "${build_source}/docs"
           cp README.md "${build_source}/README.md"
+          cp README.ja.md "${build_source}/README.ja.md"
 
-          pages_base_url="${PAGES_BASE_URL%/}"
-          if [[ -z "${pages_base_url}" ]]; then
-            pages_base_url="http://localhost"
-          fi
-
-          php "${build_source}/_documint/index.php" \
+          if ! php "${build_source}/_documint/index.php" \
             --mode=readme-index \
-            --root-url="${pages_base_url}" \
+            --root-url="${pages_origin}" \
             --base-path="${pages_base_path}" \
-            >"${response_file}" 2>&1
-
-          if grep -q "<strong>ERROR:</strong>" "${response_file}"; then
+            >"${response_file}" 2>&1; then
             cat "${response_file}"
             exit 1
           fi
 
           test -d "${build_source}/_page_list"
           test -f "${build_source}/sitemap.xml"
+          grep -Fq "<loc>${pages_origin}${pages_base_path}/index.html</loc>" "${build_source}/sitemap.xml"
 
           cp -R "${build_source}/docs/." "${site_dir}/docs/"
           cp -R "${build_source}/_page_list" "${site_dir}/_page_list"
           cp "${build_source}/sitemap.xml" "${site_dir}/sitemap.xml"
           cp "${build_source}/index.html" "${site_dir}/index.html"
+          cp "${build_source}/README.ja.html" "${site_dir}/README.ja.html"
 
           if [[ -n "${pages_base_path}" ]]; then
             find "${site_dir}" -type f -name '*.html' -print0 | xargs -0 sed -i \
@@ -100,6 +103,7 @@ jobs:
           test -f "${site_dir}/_page_list/page_list.html"
           test -f "${site_dir}/sitemap.xml"
           test -f "${site_dir}/index.html"
+          test -f "${site_dir}/README.ja.html"
           test ! -e "${site_dir}/README.html"
           test ! -e "${site_dir}/docs/README.html"
 

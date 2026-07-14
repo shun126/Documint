@@ -42,13 +42,12 @@ jobs:
           cp -R _documint "${build_source}/_documint"
           cp -R docs "${build_source}/docs"
           cp README.md "${build_source}/README.md"
+          cp README.ja.md "${build_source}/README.ja.md"
 
-          php "${build_source}/_documint/index.php" \
+          if ! php "${build_source}/_documint/index.php" \
             --mode=readme-index \
             --root-url=http://localhost \
-            >"${response_file}" 2>&1
-
-          if grep -q "<strong>ERROR:</strong>" "${response_file}"; then
+            >"${response_file}" 2>&1; then
             cat "${response_file}"
             exit 1
           fi
@@ -61,6 +60,7 @@ jobs:
           cp "${build_source}/sitemap.xml" "${site_dir}/sitemap.xml"
 
           cp "${build_source}/index.html" "${site_dir}/index.html"
+          cp "${build_source}/README.ja.html" "${site_dir}/README.ja.html"
 
           test -f "${site_dir}/docs/index.html"
           test -f "${site_dir}/docs/markdown-basics.html"
@@ -70,6 +70,7 @@ jobs:
           test -f "${site_dir}/_page_list/page_list.html"
           test -f "${site_dir}/sitemap.xml"
           test -f "${site_dir}/index.html"
+          test -f "${site_dir}/README.ja.html"
           test ! -e "${site_dir}/README.html"
           test ! -e "${site_dir}/docs/README.html"
 

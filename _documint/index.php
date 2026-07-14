@@ -684,11 +684,28 @@ function write_output_file($path, $contents)
 	}
 }
 
+$generationErrorOccurred = false;
+
 function display_generation_error($e)
 {
+	global $generationErrorOccurred;
+	$generationErrorOccurred = true;
+
+	if (PHP_SAPI === 'cli')
+	{
+		fwrite(STDERR, 'ERROR: ' . $e->getMessage() . PHP_EOL);
+		return;
+	}
+
 	echo '<div class="alert alert-danger" role="alert"><strong>ERROR:</strong> ';
 	echo htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
 	echo '</div>';
+}
+
+function generation_error_occurred()
+{
+	global $generationErrorOccurred;
+	return $generationErrorOccurred;
 }
 
 /**
@@ -1627,9 +1644,17 @@ try {
 	}
 
 	run_generation_mode($requestedMode);
+	if (PHP_SAPI === 'cli' && generation_error_occurred())
+	{
+		exit(1);
+	}
 
 } catch(Throwable $e) {
 	display_generation_error($e);
+	if (PHP_SAPI === 'cli')
+	{
+		exit(1);
+	}
 }
 ?>
 
