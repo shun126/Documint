@@ -39,7 +39,22 @@ Documint will generate `.html` files beside your Markdown files, plus:
 - `_page_list/category-*.html`
 - `sitemap.xml`
 
-See the tutorial in [docs/index.md](docs/index.md).
+When running from CI or another command-line environment, pass `--mode` to choose the generation mode:
+
+```bash
+php _documint/index.php --mode=site
+php _documint/index.php --mode=readme-index
+```
+
+Use `--mode=site` to generate each Markdown file as a same-named HTML file. Use `--mode=readme-index` to generate every `README.md` as `index.html` in the same directory instead of `README.html`, while generating all other Markdown files normally. A directory containing both `README.md` and `index.md` is rejected because both would produce `index.html`. You can also pass `--root-url` and `--base-path` when sitemap URLs need CI-specific values.
+
+CLI runs exit with status `0` on success. If any generation error occurs, the error is written to standard error and the process exits with status `1` after completing any recoverable generation work.
+
+```bash
+php _documint/index.php --mode=site --root-url=https://example.com --base-path=docs
+```
+
+See the tutorial in [docs/README.md](docs/README.md).
 
 ## Template Tags
 

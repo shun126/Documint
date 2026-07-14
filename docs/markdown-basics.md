@@ -21,12 +21,12 @@ Use headings to divide the page into sections. Paragraphs are written as plain t
 | Input | Output |
 | --- | --- |
 | `docs/markdown-basics.md` | `docs/markdown-basics.html` |
-| `README.md` | `README.html` |
+| `README.md` | `README.html` (`site`) or `index.html` (`readme-index`) |
 
 ## Links
 
 Links to Markdown files are rewritten to generated HTML paths.
 
-Go back to [Documint](index.md).
+Go back to [Documint](README.md).
 
 {{category Tutorial, GettingStarted, Moriya}}

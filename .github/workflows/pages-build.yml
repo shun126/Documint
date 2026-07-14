@@ -33,7 +33,6 @@ jobs:
           build_source="${RUNNER_TEMP}/documint-source"
           site_dir="${GITHUB_WORKSPACE}/_site"
           response_file="${RUNNER_TEMP}/documint-build-response.html"
-          server_log="${RUNNER_TEMP}/documint-server.log"
 
           rm -rf "${build_source}" "${site_dir}"
           mkdir -p "${build_source}" "${site_dir}/docs"
@@ -42,50 +41,26 @@ jobs:
 
           cp -R _documint "${build_source}/_documint"
           cp -R docs "${build_source}/docs"
+          cp README.md "${build_source}/README.md"
+          cp README.ja.md "${build_source}/README.ja.md"
 
-          php -S 127.0.0.1:8000 -t "${build_source}" "${build_source}/_documint/index.php" >"${server_log}" 2>&1 &
-          server_pid="$!"
-          trap 'kill "${server_pid}" 2>/dev/null || true' EXIT
-
-          build_url="http://127.0.0.1:8000/index.php"
-
-          for attempt in {1..20}; do
-            if curl --fail --silent --show-error "${build_url}" --output "${response_file}"; then
-              break
-            fi
-            sleep 1
-          done
-
-          if [[ ! -s "${response_file}" ]]; then
-            echo "Documint did not return a response."
-            cat "${server_log}"
-            exit 1
-          fi
-
-          if grep -q "ERROR!!!" "${response_file}"; then
+          if ! php "${build_source}/_documint/index.php" \
+            --mode=readme-index \
+            --root-url=http://localhost \
+            >"${response_file}" 2>&1; then
             cat "${response_file}"
-            cat "${server_log}"
             exit 1
           fi
+
+          test -d "${build_source}/_page_list"
+          test -f "${build_source}/sitemap.xml"
 
           cp -R "${build_source}/docs/." "${site_dir}/docs/"
           cp -R "${build_source}/_page_list" "${site_dir}/_page_list"
           cp "${build_source}/sitemap.xml" "${site_dir}/sitemap.xml"
 
-          cat > "${site_dir}/index.html" <<'HTML'
-          <!doctype html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <meta http-equiv="refresh" content="0; url=docs/index.html">
-            <title>Documint</title>
-          </head>
-          <body>
-            <p><a href="docs/index.html">Open the Documint documentation</a></p>
-          </body>
-          </html>
-          HTML
+          cp "${build_source}/index.html" "${site_dir}/index.html"
+          cp "${build_source}/README.ja.html" "${site_dir}/README.ja.html"
 
           test -f "${site_dir}/docs/index.html"
           test -f "${site_dir}/docs/markdown-basics.html"
@@ -94,6 +69,10 @@ jobs:
           test -f "${site_dir}/docs/feature-reference.html"
           test -f "${site_dir}/_page_list/page_list.html"
           test -f "${site_dir}/sitemap.xml"
+          test -f "${site_dir}/index.html"
+          test -f "${site_dir}/README.ja.html"
+          test ! -e "${site_dir}/README.html"
+          test ! -e "${site_dir}/docs/README.html"
 
       - name: Upload built site artifact
         uses: actions/upload-artifact@v4

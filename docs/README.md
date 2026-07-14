@@ -39,7 +39,7 @@ This is useful when a document should not live in only one folder-like location.
 Create a Markdown file, open `_documint/index.php` through a PHP server, and Documint generates a matching HTML file.
 
 ```text
-docs/index.md -> docs/index.html
+docs/README.md -> docs/index.html
 ```
 
 The generated site also includes page lists, category pages, and a sitemap.
