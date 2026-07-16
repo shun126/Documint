@@ -72,6 +72,8 @@ jobs:
           cp README.ja.md "${build_source}/README.ja.md"
 
           if ! php "${build_source}/_documint/index.php" \
+            --id=admin \
+            --password=password \
             --mode=readme-index \
             --root-url="${pages_origin}" \
             --base-path="${pages_base_path}" \
