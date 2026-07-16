@@ -44,6 +44,12 @@ function render_generation_form($selectedMode = 'site')
 	echo '<div class="mb-3">';
 	echo '<label class="form-label" for="documint_auth_password">Password</label>';
 	echo '<input class="form-control" type="password" name="auth_password" id="documint_auth_password" autocomplete="current-password" required>';
+	if (function_exists('is_documint_default_password_configured') && is_documint_default_password_configured())
+	{
+		echo '<div class="alert alert-warning mt-2 mb-0" role="alert">';
+		echo '現在の生成用パスワードはデフォルト値のままです。_documint/config.php の DOCUMINT_AUTH_PASSWORD を変更してください。';
+		echo '</div>';
+	}
 	echo '</div>';
 	foreach ($modes as $mode => $label)
 	{

@@ -63,4 +63,20 @@ function require_web_generation_authentication()
 		throw new RuntimeException('Invalid Documint ID or password.');
 	}
 }
+/*
+Detect whether the configured generation password still uses the default value.
+*/
+function is_documint_default_password_configured()
+{
+	try
+	{
+		load_documint_config();
+	}
+	catch (Throwable $e)
+	{
+		return false;
+	}
+
+	return hash_equals('password', (string)DOCUMINT_AUTH_PASSWORD);
+}
 
