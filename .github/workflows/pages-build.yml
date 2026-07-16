@@ -41,6 +41,8 @@ jobs:
 
           cp -R _documint "${build_source}/_documint"
           cp -R docs/. "${build_source}/"
+          sed -i 's|(../_page_list/page_list.html)|(_page_list/page_list.html)|g' "${build_source}/sidebar.md"
+          grep -Fq '](_page_list/page_list.html)' "${build_source}/sidebar.md"
 
           if ! php "${build_source}/_documint/index.php" \
             --id=admin \
