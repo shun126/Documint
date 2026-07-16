@@ -6,6 +6,13 @@ It scans Markdown files in the project directory, converts them to HTML, applies
 
 Japanese: [README.ja.md](README.ja.md)
 
+## Documentation Demo
+
+Documint's own documentation is generated with Documint, so the docs are both a guide and a live example of the output.
+
+- [View the generated docs](https://shun126.github.io/Documint/)
+- [View the Markdown source](docs/README.md)
+
 ## Features
 
 - Convert Markdown files to HTML pages.

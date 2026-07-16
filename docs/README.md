@@ -8,6 +8,13 @@ Documint is a small PHP-based static site generator for teams that want to publi
 
 It is designed for documentation that starts small but needs to stay findable: project notes, onboarding guides, operation manuals, feature references, and team knowledge bases.
 
+## Source on GitHub
+
+This documentation is both the source and the demo: Markdown files in GitHub are generated into the pages you are reading now.
+
+- [View the GitHub repository](https://github.com/shun126/Documint)
+- [View this page source](https://github.com/shun126/Documint/blob/main/docs/README.md)
+
 ## Why Documint?
 
 - Write pages in ordinary Markdown.
