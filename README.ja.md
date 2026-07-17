@@ -54,6 +54,8 @@ php _documint/index.php --id=admin --password=password --mode=site
 php _documint/index.php --id=admin --password=password --mode=readme-index
 ```
 
+ブラウザーから正しいIDとパスワードで生成すると、認証状態はログイン時点から1時間維持されます。その間は生成のたびにIDとパスワードを再入力する必要はありません。共有端末では、作業後に画面の「ログアウト」を押してください。CLI実行ではセッションを使用せず、従来どおり実行ごとに認証情報が必要です。
+
 `--mode=site` では、各 Markdown ファイルと同じ名前の HTML ファイルを生成します。`--mode=readme-index` では、それ以外の Markdown ファイルは通常どおり生成しつつ、すべての `README.md` を同じディレクトリの `README.html` ではなく `index.html` として生成します。`README.md` と `index.md` が同じディレクトリにある場合、どちらも `index.html` を生成するためエラーになります。サイトマップの URL に CI 固有の値が必要な場合は、`--root-url` と `--base-path` も指定できます。コマンドラインで渡したパスワードはシェル履歴に残る場合があるため注意してください。
 
 CLI 実行は成功すると終了ステータス `0` を返します。生成エラーが発生した場合は、復旧可能な生成処理を完了した後、エラーを標準エラー出力へ書き込み、終了ステータス `1` で終了します。

@@ -118,23 +118,36 @@ Run Documint for CLI or web requests.
 */
 function run_documint_controller()
 {
+	$formRendered = false;
 	try {
 		$requestedMode = normalize_generation_mode(PHP_SAPI === 'cli' ? get_cli_option_value('mode', 'site') : (isset($_POST['mode']) ? $_POST['mode'] : 'site'));
-	
-		if (PHP_SAPI !== 'cli')
-		{
-			render_generation_form($requestedMode);
-		}
-	
+
 		if (PHP_SAPI === 'cli')
 		{
 			require_cli_generation_authentication();
 			run_generation_mode($requestedMode);
 		}
+		else if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'logout')
+		{
+			if (is_web_generation_authenticated())
+			{
+				require_web_generation_csrf_token();
+			}
+			clear_web_generation_authentication();
+			render_generation_form($requestedMode);
+			$formRendered = true;
+		}
 		else if ($_SERVER['REQUEST_METHOD'] === 'POST')
 		{
 			require_web_generation_authentication();
+			render_generation_form($requestedMode);
+			$formRendered = true;
 			run_generation_mode($requestedMode);
+		}
+		else
+		{
+			render_generation_form($requestedMode);
+			$formRendered = true;
 		}
 		if (PHP_SAPI === 'cli' && generation_error_occurred())
 		{
@@ -146,6 +159,10 @@ function run_documint_controller()
 		if (PHP_SAPI === 'cli')
 		{
 			exit(1);
+		}
+		if (!$formRendered)
+		{
+			render_generation_form(isset($requestedMode) ? $requestedMode : 'site');
 		}
 	}
 }

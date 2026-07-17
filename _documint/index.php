@@ -1,3 +1,7 @@
+<?php
+	require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
+	initialize_documint_web_session();
+?>
 <html lang="en">
 <head>
 	<meta charset="UTF-8" />
@@ -36,7 +40,6 @@
 	require_once __DIR__ . DIRECTORY_SEPARATOR . 'renderer.php';
 	require_once __DIR__ . DIRECTORY_SEPARATOR . 'generator.php';
 	require_once __DIR__ . DIRECTORY_SEPARATOR . 'web.php';
-	require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
 	require_once __DIR__ . DIRECTORY_SEPARATOR . 'controller.php';
 
 	run_documint_controller();

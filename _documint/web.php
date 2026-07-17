@@ -36,21 +36,30 @@ function render_generation_form($selectedMode = 'site')
 	echo '<form method="post" class="card my-4">';
 	echo '<div class="card-body">';
 	echo '<h2 class="card-title h4">生成モード</h2>';
-	echo '<p class="card-text">Documintの実行モードを選択し、IDとパスワードを入力してから生成を開始します。</p>';
-	echo '<div class="mb-3">';
-	echo '<label class="form-label" for="documint_auth_id">ID</label>';
-	echo '<input class="form-control" type="text" name="auth_id" id="documint_auth_id" autocomplete="username" required>';
-	echo '</div>';
-	echo '<div class="mb-3">';
-	echo '<label class="form-label" for="documint_auth_password">Password</label>';
-	echo '<input class="form-control" type="password" name="auth_password" id="documint_auth_password" autocomplete="current-password" required>';
-	if (function_exists('is_documint_default_password_configured') && is_documint_default_password_configured())
+	$authenticated = function_exists('is_web_generation_authenticated') && is_web_generation_authenticated();
+	if ($authenticated)
 	{
-		echo '<div class="alert alert-warning mt-2 mb-0" role="alert">';
-		echo '現在の生成用パスワードはデフォルト値のままです。_documint/config.php の DOCUMINT_AUTH_PASSWORD を変更してください。';
+		echo '<p class="card-text">認証済みです。この認証はログインから1時間有効です。</p>';
+		echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(get_web_generation_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
+	}
+	else
+	{
+		echo '<p class="card-text">Documintの実行モードを選択し、IDとパスワードを入力してから生成を開始します。</p>';
+		echo '<div class="mb-3">';
+		echo '<label class="form-label" for="documint_auth_id">ID</label>';
+		echo '<input class="form-control" type="text" name="auth_id" id="documint_auth_id" autocomplete="username" required>';
+		echo '</div>';
+		echo '<div class="mb-3">';
+		echo '<label class="form-label" for="documint_auth_password">Password</label>';
+		echo '<input class="form-control" type="password" name="auth_password" id="documint_auth_password" autocomplete="current-password" required>';
+		if (function_exists('is_documint_default_password_configured') && is_documint_default_password_configured())
+		{
+			echo '<div class="alert alert-warning mt-2 mb-0" role="alert">';
+			echo '現在の生成用パスワードはデフォルト値のままです。_documint/config.php の DOCUMINT_AUTH_PASSWORD を変更してください。';
+			echo '</div>';
+		}
 		echo '</div>';
 	}
-	echo '</div>';
 	foreach ($modes as $mode => $label)
 	{
 		$id = 'generation_mode_' . str_replace('-', '_', $mode);
@@ -63,4 +72,13 @@ function render_generation_form($selectedMode = 'site')
 	echo '<button type="submit" class="btn btn-primary mt-3">生成開始</button>';
 	echo '</div>';
 	echo '</form>';
+
+	if ($authenticated)
+	{
+		echo '<form method="post" class="mb-4">';
+		echo '<input type="hidden" name="action" value="logout">';
+		echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(get_web_generation_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
+		echo '<button type="submit" class="btn btn-outline-secondary">ログアウト</button>';
+		echo '</form>';
+	}
 }
