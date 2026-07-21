@@ -18,7 +18,7 @@ Documint's own documentation is generated with Documint, so the docs are both a 
 - Convert Markdown files to HTML pages.
 - Apply `template.html` with `{{title}}`, `{{body}}`, and `{{sidebar}}`.
 - Resolve `sidebar.md` from the current directory or a parent directory.
-- Generate `_page_list/page_list.html` automatically.
+- Generate `_page_list/index.html` automatically.
 - Assign categories to pages and generate category index pages.
 - Render Mermaid and PlantUML diagrams from fenced code blocks.
 - Embed raw HTML explicitly with `{{html}} ... {{/html}}`.
@@ -42,7 +42,7 @@ http://localhost:8000/_documint/index.php
 
 Documint will generate `.html` files beside your Markdown files, plus:
 
-- `_page_list/page_list.html`
+- `_page_list/index.html`
 - `_page_list/category-*.html`
 - `sitemap.xml`
 
@@ -143,7 +143,7 @@ Use `{{page_list}}` to output links to all discovered Markdown pages.
 {{page_list}}
 ```
 
-Documint also generates the full page list at `_page_list/page_list.html`.
+Documint also generates the full page list at `_page_list/index.html`.
 
 ### Include Files
 

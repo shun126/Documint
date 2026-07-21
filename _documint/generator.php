@@ -182,7 +182,7 @@ function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
 	validate_input_file($template_file_name, 'Template file');
 
 	$pageListDirectory = prepare_page_list_directory($fileBasePath);
-	$outputPath = $pageListDirectory . DIRECTORY_SEPARATOR . 'page_list.html';
+	$outputPath = $pageListDirectory . DIRECTORY_SEPARATOR . 'index.html';
 
 	$html = "<h1>List of Pages</h1>";
 	foreach ($pages as $page)
@@ -199,7 +199,7 @@ function generate_page_list_html($pages, $fileBasePath, $networkBasePath)
 	$html = template($template_file_name, 'List of Pages', $html, $sidebar_html);
 	write_output_file($outputPath, $html);
 
-	echo 'generate <a href="' . $networkBasePath . '/' . DOCUMINT_PAGE_LIST_DIR_NAME . '/page_list.html">page_list.html</a></br>';
+	echo 'generate <a href="' . $networkBasePath . '/' . DOCUMINT_PAGE_LIST_DIR_NAME . '/index.html">index.html</a></br>';
 }
 
 /*

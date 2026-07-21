@@ -41,8 +41,8 @@ jobs:
 
           cp -R _documint "${build_source}/_documint"
           cp -R docs/. "${build_source}/"
-          sed -i 's|(../_page_list/page_list.html)|(_page_list/page_list.html)|g' "${build_source}/sidebar.md"
-          grep -Fq '](_page_list/page_list.html)' "${build_source}/sidebar.md"
+          sed -i 's|(../_page_list/index.html)|(_page_list/index.html)|g' "${build_source}/sidebar.md"
+          grep -Fq '](_page_list/index.html)' "${build_source}/sidebar.md"
 
           if ! php "${build_source}/_documint/index.php" \
             --id=admin \
@@ -67,7 +67,7 @@ jobs:
           test -f "${site_dir}/advanced-features.html"
           test -f "${site_dir}/category-workflow.html"
           test -f "${site_dir}/feature-reference.html"
-          test -f "${site_dir}/_page_list/page_list.html"
+          test -f "${site_dir}/_page_list/index.html"
           test -f "${site_dir}/sitemap.xml"
           test -d "${site_dir}/images"
           test ! -e "${site_dir}/README.html"

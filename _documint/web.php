@@ -29,22 +29,22 @@ Render the generation mode form.
 function render_generation_form($selectedMode = 'site')
 {
 	$modes = [
-		'site' => '通常生成（すべてのMarkdownをHTML化）',
-		'readme-index' => '各README.mdを同一ディレクトリのindex.htmlとして出力',
+		'site' => 'Standard generation (convert all Markdown files to HTML)',
+		'readme-index' => 'Output each README.md as index.html in the same directory',
 	];
 
 	echo '<form method="post" class="card my-4">';
 	echo '<div class="card-body">';
-	echo '<h2 class="card-title h4">生成モード</h2>';
+	echo '<h2 class="card-title h4">Generation Mode</h2>';
 	$authenticated = function_exists('is_web_generation_authenticated') && is_web_generation_authenticated();
 	if ($authenticated)
 	{
-		echo '<p class="card-text">認証済みです。この認証はログインから1時間有効です。</p>';
+		echo '<p class="card-text">You are authenticated. This authentication remains valid for one hour after login.</p>';
 		echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(get_web_generation_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
 	}
 	else
 	{
-		echo '<p class="card-text">Documintの実行モードを選択し、IDとパスワードを入力してから生成を開始します。</p>';
+		echo '<p class="card-text">Select a Documint generation mode, enter your ID and password, then start generation.</p>';
 		echo '<div class="mb-3">';
 		echo '<label class="form-label" for="documint_auth_id">ID</label>';
 		echo '<input class="form-control" type="text" name="auth_id" id="documint_auth_id" autocomplete="username" required>';
@@ -55,7 +55,7 @@ function render_generation_form($selectedMode = 'site')
 		if (function_exists('is_documint_default_password_configured') && is_documint_default_password_configured())
 		{
 			echo '<div class="alert alert-warning mt-2 mb-0" role="alert">';
-			echo '現在の生成用パスワードはデフォルト値のままです。_documint/config.php の DOCUMINT_AUTH_PASSWORD を変更してください。';
+			echo 'The generation password is still set to its default value. Change DOCUMINT_AUTH_PASSWORD in _documint/config.php.';
 			echo '</div>';
 		}
 		echo '</div>';
@@ -69,7 +69,7 @@ function render_generation_form($selectedMode = 'site')
 		echo '<label class="form-check-label" for="' . $id . '">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</label>';
 		echo '</div>';
 	}
-	echo '<button type="submit" class="btn btn-primary mt-3">生成開始</button>';
+	echo '<button type="submit" class="btn btn-primary mt-3">Start Generation</button>';
 	echo '</div>';
 	echo '</form>';
 
@@ -78,7 +78,7 @@ function render_generation_form($selectedMode = 'site')
 		echo '<form method="post" class="mb-4">';
 		echo '<input type="hidden" name="action" value="logout">';
 		echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(get_web_generation_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
-		echo '<button type="submit" class="btn btn-outline-secondary">ログアウト</button>';
+		echo '<button type="submit" class="btn btn-outline-secondary">Log Out</button>';
 		echo '</form>';
 	}
 }

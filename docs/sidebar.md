@@ -13,4 +13,4 @@
 
 #### Generated Pages
 
-- [_page_list/page_list.html](../_page_list/page_list.html)
+- [_page_list/index.html](../_page_list/index.html)

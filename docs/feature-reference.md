@@ -44,7 +44,7 @@ Use `{{page_list}}` to show every Markdown page discovered by Documint:
 
 {{page_list}}
 
-Documint also generates the full list at `_page_list/page_list.html`.
+Documint also generates the full list at `_page_list/index.html`.
 
 ## Sidebar
 

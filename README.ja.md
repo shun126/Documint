@@ -11,7 +11,7 @@ English: [README.md](README.md)
 - Markdown ファイルを HTML ページに変換します。
 - `{{title}}`、`{{body}}`、`{{sidebar}}` を使用して `template.html` を適用します。
 - 現在のディレクトリまたは親ディレクトリから `sidebar.md` を探索します。
-- `_page_list/page_list.html` を自動生成します。
+- `_page_list/index.html` を自動生成します。
 - ページにカテゴリーを割り当て、カテゴリー別の一覧ページを生成します。
 - フェンスコードブロックから Mermaid と PlantUML の図を描画します。
 - `{{html}} ... {{/html}}` を使用して生の HTML を明示的に埋め込みます。
@@ -35,7 +35,7 @@ http://localhost:8000/_documint/index.php
 
 Documint は Markdown ファイルと同じ場所に `.html` ファイルを生成し、さらに次のファイルも生成します。
 
-- `_page_list/page_list.html`
+- `_page_list/index.html`
 - `_page_list/category-*.html`
 - `sitemap.xml`
 
@@ -136,7 +136,7 @@ HTML テンプレートでは、次のプレースホルダーを使用できま
 {{page_list}}
 ```
 
-Documint は `_page_list/page_list.html` にも全ページの一覧を生成します。
+Documint は `_page_list/index.html` にも全ページの一覧を生成します。
 
 ### ファイルのインクルード
 
