@@ -40,7 +40,7 @@ jobs:
           rsync -a --exclude='/parsedown/' _documint/ "${staging_dir}/_documint/"
           cp _documint/parsedown/Parsedown.php "${staging_dir}/_documint/parsedown/"
           cp _documint/parsedown/LICENSE.txt "${staging_dir}/_documint/parsedown/"
-          cp _documint/parsedown/readme.md "${staging_dir}/_documint/parsedown/"
+          cp _documint/parsedown/README.md "${staging_dir}/_documint/parsedown/"
 
           (
             cd "${staging_dir}"
@@ -48,7 +48,7 @@ jobs:
           )
 
           test "$(unzip -Z1 "${archive}" | grep -E '^_documint/parsedown/[^/]+$' | sort | tr '\n' ' ')" = \
-            "_documint/parsedown/LICENSE.txt _documint/parsedown/Parsedown.php _documint/parsedown/readme.md "
+            "_documint/parsedown/LICENSE.txt _documint/parsedown/Parsedown.php _documint/parsedown/README.md "
 
       - name: Upload release package
         uses: actions/upload-artifact@v4
