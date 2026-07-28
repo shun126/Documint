@@ -33,8 +33,7 @@ jobs:
           archive_name="documint-${version}.zip"
           archive="${GITHUB_WORKSPACE}/${archive_name}"
           echo "archive_name=${archive_name}" >> "${GITHUB_OUTPUT}"
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
-          echo "release_tag=v${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${version}" >> "${GITHUB_OUTPUT}"
 
           rm -rf "${staging_dir}" "${archive}"
           mkdir -p "${staging_dir}/_documint/parsedown"
@@ -60,21 +59,29 @@ jobs:
           if-no-files-found: error
           compression-level: 0
 
-      - name: Create GitHub release
+      - name: Publish GitHub release
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           ARCHIVE_NAME: ${{ steps.package.outputs.archive_name }}
-          RELEASE_TAG: ${{ steps.package.outputs.release_tag }}
-          RELEASE_VERSION: ${{ steps.package.outputs.version }}
-        shell: bash
+          RELEASE_TAG: ${{ steps.package.outputs.tag }}
         run: |
           set -euo pipefail
 
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+            tagged_sha="$(git rev-list -n 1 "${RELEASE_TAG}^{commit}")"
+
+            if [[ "${tagged_sha}" != "${GITHUB_SHA}" ]]; then
+              echo "Release tag ${RELEASE_TAG} points to ${tagged_sha}, not ${GITHUB_SHA}." >&2
+              echo "Bump DOCUMINT_VERSION before releasing code from a different commit." >&2
+              exit 1
+            fi
+
             gh release upload "${RELEASE_TAG}" "${ARCHIVE_NAME}" --clobber
           else
             gh release create "${RELEASE_TAG}" "${ARCHIVE_NAME}" \
               --target "${GITHUB_SHA}" \
-              --title "Documint ${RELEASE_VERSION}" \
+              --title "Documint ${RELEASE_TAG#v}" \
               --generate-notes
           fi
