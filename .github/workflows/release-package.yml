@@ -1,0 +1,87 @@
+name: Build release package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package Documint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Create release package
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          staging_dir="${RUNNER_TEMP}/documint-release"
+          version="$(php -r "require '_documint/constants.php'; echo DOCUMINT_VERSION;")"
+
+          if [[ ! "${version}" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
+            echo "Invalid Documint version: ${version}" >&2
+            exit 1
+          fi
+
+          archive_name="documint-${version}.zip"
+          archive="${GITHUB_WORKSPACE}/${archive_name}"
+          echo "archive_name=${archive_name}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${version}" >> "${GITHUB_OUTPUT}"
+
+          rm -rf "${staging_dir}" "${archive}"
+          mkdir -p "${staging_dir}/_documint/parsedown"
+
+          rsync -a --exclude='/parsedown/' _documint/ "${staging_dir}/_documint/"
+          cp _documint/parsedown/Parsedown.php "${staging_dir}/_documint/parsedown/"
+          cp _documint/parsedown/LICENSE.txt "${staging_dir}/_documint/parsedown/"
+          cp _documint/parsedown/readme.md "${staging_dir}/_documint/parsedown/"
+
+          (
+            cd "${staging_dir}"
+            zip -r "${archive}" _documint
+          )
+
+          test "$(unzip -Z1 "${archive}" | grep -E '^_documint/parsedown/[^/]+$' | sort | tr '\n' ' ')" = \
+            "_documint/parsedown/LICENSE.txt _documint/parsedown/Parsedown.php _documint/parsedown/readme.md "
+
+      - name: Upload release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: documint-release
+          path: ${{ steps.package.outputs.archive_name }}
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_NAME: ${{ steps.package.outputs.archive_name }}
+          RELEASE_TAG: ${{ steps.package.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+            tagged_sha="$(git rev-list -n 1 "${RELEASE_TAG}^{commit}")"
+
+            if [[ "${tagged_sha}" != "${GITHUB_SHA}" ]]; then
+              echo "Release tag ${RELEASE_TAG} points to ${tagged_sha}, not ${GITHUB_SHA}." >&2
+              echo "Bump DOCUMINT_VERSION before releasing code from a different commit." >&2
+              exit 1
+            fi
+
+            gh release upload "${RELEASE_TAG}" "${ARCHIVE_NAME}" --clobber
+          else
+            gh release create "${RELEASE_TAG}" "${ARCHIVE_NAME}" \
+              --target "${GITHUB_SHA}" \
+              --title "Documint ${RELEASE_TAG#v}" \
+              --generate-notes
+          fi
