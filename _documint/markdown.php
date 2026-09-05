@@ -448,7 +448,7 @@ function parse_md($path, $pages, $outputPath = NULL)
 			$args = parse_category_list_arguments(isset($match[1]) ? $match[1] : '');
 			if ($args !== NULL)
 			{
-				$body .= build_category_list_markdown($pages, $args['filter'], $args['heading_level']);
+				$body .= build_category_list_markdown($pages, $args['filter'], $args['heading_level'], $outputPath !== NULL ? $outputPath : $path);
 			}
 		}
 		else if (preg_match('/^\{\{category\s+(.+)\}\}$/u', $token, $match))
