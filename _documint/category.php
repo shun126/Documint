@@ -131,7 +131,7 @@ function parse_category_list_arguments($rawArgs)
 /*
 Generate a category list as Markdown.
 */
-function build_category_list_markdown($pages, $filter, $heading_level = 2)
+function build_category_list_markdown($pages, $filter, $heading_level = 2, $outputPath = NULL)
 {
 	$body = '';
 	$categories = build_category_page_map($pages);
@@ -147,7 +147,8 @@ function build_category_list_markdown($pages, $filter, $heading_level = 2)
 			{
 				foreach ($categories[$category] as $page)
 				{
-					$body .= "* [" . $page->getTitle() . "](" . $page->getNetworkPath() . ")\n";
+					$linkPath = $outputPath !== NULL ? build_relative_link_path($outputPath, $page->getOutputFilePath()) : $page->getNetworkPath();
+					$body .= "* [" . $page->getTitle() . "](" . $linkPath . ")\n";
 				}
 			}
 			$body .= "\n";
@@ -161,7 +162,8 @@ function build_category_list_markdown($pages, $filter, $heading_level = 2)
 		$body .= $heading_marker . ' ' . $category . "\n\n";
 		foreach ($category_pages as $page)
 		{
-			$body .= "* [" . $page->getTitle() . "](" . $page->getNetworkPath() . ")\n";
+			$linkPath = $outputPath !== NULL ? build_relative_link_path($outputPath, $page->getOutputFilePath()) : $page->getNetworkPath();
+			$body .= "* [" . $page->getTitle() . "](" . $linkPath . ")\n";
 		}
 		$body .= "\n";
 	}
