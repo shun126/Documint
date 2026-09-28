@@ -636,10 +636,28 @@ function get_output_extension_from_markdown($path)
 {
 	$markdown = open_input_file($path, 'Markdown file');
 	$extension = 'html';
+	$fenceMarker = NULL;
 
 	while (($line = fgets($markdown)))
 	{
 		$line = trim($line);
+		if (preg_match('/^(`{3,}|~{3,})/', $line, $fenceMatch))
+		{
+			$marker = $fenceMatch[1][0];
+			if ($fenceMarker === NULL)
+			{
+				$fenceMarker = $marker;
+			}
+			else if ($fenceMarker === $marker)
+			{
+				$fenceMarker = NULL;
+			}
+			continue;
+		}
+		if ($fenceMarker !== NULL)
+		{
+			continue;
+		}
 		if (preg_match('/^\{\{output_extension\s+(.+)\}\}$/u', $line, $match))
 		{
 			$specifiedExtension = ltrim(trim($match[1]), '.');
@@ -683,4 +701,3 @@ function get_categories_from_markdown($path)
 	fclose($markdown);
 	return array_keys($categories);
 }
-
