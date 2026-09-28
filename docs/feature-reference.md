@@ -16,6 +16,19 @@ Use `{{title ...}}` to set the generated HTML title and page-list title.
 
 If the title tag is omitted, Documint uses the first `# Heading`.
 
+## Output extension metadata
+
+The generated extension defaults to `html`. Set it per page with
+`{{output_extension ...}}`; for example, the following page is written as a
+`.php` file:
+
+```text
+{{output_extension php}}
+```
+
+The leading dot is optional. Only ASCII letters and numbers are accepted, and
+links to the Markdown source are rewritten to use the selected extension.
+
 ## Categories
 
 Use `{{category ...}}` to assign one or more categories and print links to the generated category pages.

@@ -39,10 +39,11 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 				{
 					try
 					{
-						$outputFileName = $path_info['filename'] . '.html';
+						$outputExtension = get_output_extension_from_markdown($path);
+						$outputFileName = $path_info['filename'] . '.' . $outputExtension;
 						if ($mode === 'readme-index' && $file === 'README.md')
 						{
-							$outputFileName = 'index.html';
+							$outputFileName = 'index.' . $outputExtension;
 						}
 						$outputFilePath = $path_info['dirname'] . DIRECTORY_SEPARATOR . $outputFileName;
 						$network_path = $networkBasePath . $dir . '/' . $outputFileName;
@@ -154,7 +155,7 @@ function gather_html_file_in_directory(&$urls, $rootUrl, $fileBasePath, $dir)
 					if (array_key_exists('extension', $path_info))
 					{
 						$extension = $path_info['extension'];
-						if ($extension === 'html' || $extension === 'htm')
+						if ($extension === 'html' || $extension === 'htm' || $extension === 'php')
 						{
 							$network_path = $rootUrl . $dir . '/' . $path_info['basename'];
 							if (DIRECTORY_SEPARATOR === "\\")

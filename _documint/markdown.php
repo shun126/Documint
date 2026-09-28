@@ -101,7 +101,24 @@ function rewrite_markdown_link_to_html($href, $sourcePath, $outputPath, $pages =
 	if (strpos($url['path'], '/') === 0)
 	{
 		$outputFileName = $path['filename'] . '.html';
-		if ($path['basename'] === 'README.md' && pages_use_readme_index($pages))
+		$sourceStem = substr($url['path'], 0, -strlen($path['extension']) - 1);
+		foreach ($pages as $page)
+		{
+			$pageNetworkPath = parse_url($page->getNetworkPath(), PHP_URL_PATH);
+			$pageStem = preg_replace('/\.[^.\/]+$/', '', $pageNetworkPath);
+			$sourceDirectoryMatches = $path['dirname'] === '/' ||
+				substr(dirname($pageNetworkPath), -strlen($path['dirname'])) === $path['dirname'];
+			if (
+				$pageStem === $sourceStem ||
+				substr($pageStem, -strlen($sourceStem)) === $sourceStem ||
+				(basename($page->getFilePath()) === $path['basename'] && $sourceDirectoryMatches)
+			)
+			{
+				$outputFileName = basename($pageNetworkPath);
+				break;
+			}
+		}
+		if ($outputFileName === $path['filename'] . '.html' && $path['basename'] === 'README.md' && pages_use_readme_index($pages))
 		{
 			$outputFileName = 'index.html';
 		}
@@ -460,6 +477,10 @@ function parse_md($path, $pages, $outputPath = NULL)
 		{
             // Title is metadata and is not emitted.
 		}
+		else if (preg_match('/^\{\{output_extension\s+(.+)\}\}$/u', $token))
+		{
+            // Output extension is metadata and is not emitted.
+		}
 		else if ($token === "```source")
 		{
 			$head .= markdown_to_html($body, $path, $outputPath, $pages);
@@ -605,6 +626,37 @@ function get_title_from_markdown($path)
 	}
 
 	return $title;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*
+Get the output extension from {{output_extension ...}} or use html.
+*/
+function get_output_extension_from_markdown($path)
+{
+	$markdown = open_input_file($path, 'Markdown file');
+	$extension = 'html';
+
+	while (($line = fgets($markdown)))
+	{
+		$line = trim($line);
+		if (preg_match('/^\{\{output_extension\s+(.+)\}\}$/u', $line, $match))
+		{
+			$specifiedExtension = ltrim(trim($match[1]), '.');
+			if (!preg_match('/^[a-zA-Z0-9]+$/', $specifiedExtension))
+			{
+				fclose($markdown);
+				throw new RuntimeException(
+					"Invalid output extension '" . $match[1] . "'. Use letters and numbers only. '" . $path . "'"
+				);
+			}
+			$extension = strtolower($specifiedExtension);
+			break;
+		}
+	}
+
+	fclose($markdown);
+	return $extension;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

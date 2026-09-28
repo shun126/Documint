@@ -153,7 +153,7 @@ function run_documint_controller()
 		{
 			exit(1);
 		}
-	
+
 	} catch(Throwable $e) {
 		display_generation_error($e);
 		if (PHP_SAPI === 'cli')
