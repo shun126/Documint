@@ -57,6 +57,7 @@ try
 	make_file($testRoot . '/guide/foo.md', "{{output_extension php}}\n# Nested\n");
 	make_file($testRoot . '/docs/My Page.md', "{{output_extension php}}\n# Encoded\n");
 	make_file($testRoot . '/docs/other.md', "{{output_extension aspx}}\n# Other\n");
+	make_file($testRoot . '/admin.php', "<?php echo 'private';\n");
 	$fences = "````text\n```php\n{{output_extension phtml}}\n````\n~~~text\n{{output_extension php}}\n~~~\n";
 	make_file($testRoot . '/docs/fences.md', $fences);
 	$rawHtml = "{{html}}\\n<script>\\nconst example = `\\n{{output_extension php}}\\n`;\\n</script>\\n{{/html}}\\n# Raw HTML\\n";
@@ -104,6 +105,10 @@ try
 	$sitemap = file_get_contents($testRoot . '/sitemap.xml');
 	if (strpos($sitemap, '<loc>https://example.test/Documint/docs/other.aspx</loc>') === false)
 		throw new RuntimeException('Custom output extension missing from sitemap');
+	if (strpos($sitemap, '<loc>https://example.test/Documint/guide/foo.php</loc>') === false)
+		throw new RuntimeException('Generated PHP page missing from sitemap');
+	if (strpos($sitemap, '<loc>https://example.test/Documint/admin.php</loc>') !== false)
+		throw new RuntimeException('Unrelated PHP file was included in sitemap');
 
 	$repositoryPages = collect_markdown_pages(dirname(__DIR__), '', 'readme-index');
 	$foundFeatureReference = false;
