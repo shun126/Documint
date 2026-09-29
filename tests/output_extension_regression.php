@@ -59,12 +59,18 @@ try
 	make_file($testRoot . '/docs/other.md', "{{output_extension aspx}}\n# Other\n");
 	$fences = "````text\n```php\n{{output_extension phtml}}\n````\n~~~text\n{{output_extension php}}\n~~~\n";
 	make_file($testRoot . '/docs/fences.md', $fences);
+	$rawHtml = "{{html}}\\n<script>\\nconst example = `\\n{{output_extension php}}\\n`;\\n</script>\\n{{/html}}\\n# Raw HTML\\n";
+	make_file($testRoot . '/docs/raw-html.md', $rawHtml);
 	make_file($testRoot . '/docs/unsafe.md', "{{output_extension md}}\n# Unsafe\n");
 
 	expect_equal('html', get_output_extension_from_markdown($testRoot . '/docs/fences.md'), 'metadata inside fenced code');
 	$rendered = parse_md($testRoot . '/docs/fences.md', []);
 	if (strpos($rendered, '{{output_extension phtml}}') === false || strpos($rendered, '{{output_extension php}}') === false)
 		throw new RuntimeException('Fenced metadata examples disappeared from rendered code');
+	expect_equal('html', get_output_extension_from_markdown($testRoot . '/docs/raw-html.md'), 'metadata inside raw HTML block');
+	$renderedRawHtml = parse_md($testRoot . '/docs/raw-html.md', []);
+	if (strpos($renderedRawHtml, '{{output_extension php}}') === false)
+		throw new RuntimeException('Raw HTML metadata example disappeared from rendered output');
 	expect_throws(function() use ($testRoot) { get_output_extension_from_markdown($testRoot . '/docs/unsafe.md'); }, 'source overwriting extension');
 	unlink($testRoot . '/docs/unsafe.md');
 
