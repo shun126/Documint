@@ -651,9 +651,17 @@ function get_output_extension_from_markdown($path)
 	$markdown = open_input_file($path, 'Markdown file');
 	$extension = 'html';
 	$fence = NULL;
+	$inHtmlBlock = false;
 
 	while (($line = fgets($markdown)))
 	{
+		$token = trim($line);
+		if ($inHtmlBlock)
+		{
+			if ($token === '{{/html}}')
+				$inHtmlBlock = false;
+			continue;
+		}
 		if ($fence !== NULL)
 		{
 			update_markdown_fence($line, $fence);
@@ -663,8 +671,12 @@ function get_output_extension_from_markdown($path)
 		{
 			continue;
 		}
-		$line = trim($line);
-		if (preg_match('/^\{\{output_extension\s+(.+)\}\}$/u', $line, $match))
+		if ($token === '{{html}}')
+		{
+			$inHtmlBlock = true;
+			continue;
+		}
+		if (preg_match('/^\\{\\{output_extension\\s+(.+)\\}\\}$/u', $token, $match))
 		{
 			$specifiedExtension = ltrim(trim($match[1]), '.');
 			if (!preg_match('/^[a-zA-Z0-9]+$/', $specifiedExtension))
