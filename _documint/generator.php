@@ -39,10 +39,11 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 				{
 					try
 					{
-						$outputFileName = $path_info['filename'] . '.html';
+						$outputExtension = get_output_extension_from_markdown($path);
+						$outputFileName = $path_info['filename'] . '.' . $outputExtension;
 						if ($mode === 'readme-index' && $file === 'README.md')
 						{
-							$outputFileName = 'index.html';
+							$outputFileName = 'index.' . $outputExtension;
 						}
 						$outputFilePath = $path_info['dirname'] . DIRECTORY_SEPARATOR . $outputFileName;
 						$network_path = $networkBasePath . $dir . '/' . $outputFileName;
@@ -52,7 +53,8 @@ function gather_markdown_info_in_directory(&$pages, $networkBasePath, $fileBaseP
 						}
 						$title = get_title_from_markdown($path);
 						$categories = get_categories_from_markdown($path);
-						$pages[] = new PageInfomation($title, $network_path, $path, $outputFilePath, $categories);
+						$sourceRelativePath = str_replace('\\', '/', $dir . '/' . $file);
+						$pages[] = new PageInfomation($title, $network_path, $path, $outputFilePath, $categories, $sourceRelativePath);
 					}
 					catch (Throwable $e)
 					{
@@ -263,13 +265,22 @@ function collect_markdown_pages($fileBasePath, $networkBasePath, $mode = 'site')
 /*
 Validate that Markdown pages do not resolve to the same HTML output.
 */
-function validate_unique_page_output_paths($pages)
+function validate_unique_page_output_paths($pages, $fileBasePath = NULL)
 {
 	$outputSources = [];
+	$reservedSitemapPath = $fileBasePath === NULL ? NULL : strtolower(normalize_file_path($fileBasePath . DIRECTORY_SEPARATOR . 'sitemap.xml'));
 	foreach ($pages as $page)
 	{
 		$outputPath = normalize_file_path($page->getOutputFilePath());
 		$outputKey = strtolower($outputPath);
+		if ($outputKey === $reservedSitemapPath)
+		{
+			throw new RuntimeException("Page output is reserved for the generated sitemap. '" . $page->getFilePath() . "' outputs to '" . $page->getOutputFilePath() . "'.");
+		}
+		if ($outputKey === strtolower(normalize_file_path($page->getFilePath())))
+		{
+			throw new RuntimeException("Page output would overwrite its Markdown source. '" . $page->getFilePath() . "'.");
+		}
 		if (array_key_exists($outputKey, $outputSources))
 		{
 			throw new RuntimeException(
@@ -285,10 +296,18 @@ function validate_unique_page_output_paths($pages)
 /*
 Generate sitemap.xml from generated HTML files.
 */
-function generate_sitemap_xml($fileBasePath, $networkBasePath, $rootUrl)
+function generate_sitemap_xml($fileBasePath, $networkBasePath, $rootUrl, $pages = [])
 {
 	$urls = [];
 	gather_html_file_in_directory($urls, $rootUrl . $networkBasePath, $fileBasePath, '');
+	foreach ($pages as $page)
+	{
+		if (is_file($page->getOutputFilePath()))
+		{
+			$urls[] = $rootUrl . $page->getNetworkPath();
+		}
+	}
+	$urls = array_values(array_unique($urls));
 	usort($urls, function($a, $b)
 	{
 		return strlen($a) - strlen($b);
@@ -315,9 +334,10 @@ Generate all standard Documint site outputs.
 */
 function generate_site_html($pages, $fileBasePath, $networkBasePath, $rootUrl)
 {
+	validate_unique_page_output_paths($pages, $fileBasePath);
 	build_html_from_markdown($pages);
 	generate_page_list_html($pages, $fileBasePath, $networkBasePath);
 	generate_category_pages_html($pages, $fileBasePath, $networkBasePath);
 	echo render_parse_warnings();
-	generate_sitemap_xml($fileBasePath, $networkBasePath, $rootUrl);
+	generate_sitemap_xml($fileBasePath, $networkBasePath, $rootUrl, $pages);
 }

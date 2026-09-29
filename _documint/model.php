@@ -11,14 +11,16 @@ class PageInfomation
 	private $filePath;
 	private $outputFilePath;
 	private $categories;
+	private $sourceRelativePath;
 
-	public function __construct($title, $networkPath, $filePath, $outputFilePath, $categories)
+	public function __construct($title, $networkPath, $filePath, $outputFilePath, $categories, $sourceRelativePath = NULL)
 	{
 		$this->title = $title;
 		$this->networkPath = $networkPath;
 		$this->filePath = $filePath;
 		$this->outputFilePath = $outputFilePath;
 		$this->categories = $categories;
+		$this->sourceRelativePath = $sourceRelativePath;
 	}
 
 	public function getTitle()
@@ -44,5 +46,10 @@ class PageInfomation
 	public function getCategories()
 	{
 		return $this->categories;
+	}
+
+	public function getSourceRelativePath()
+	{
+		return $this->sourceRelativePath;
 	}
 };
