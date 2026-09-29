@@ -156,7 +156,7 @@ function gather_html_file_in_directory(&$urls, $rootUrl, $fileBasePath, $dir)
 					if (array_key_exists('extension', $path_info))
 					{
 						$extension = $path_info['extension'];
-						if ($extension === 'html' || $extension === 'htm' || $extension === 'php')
+						if ($extension === 'html' || $extension === 'htm')
 						{
 							$network_path = $rootUrl . $dir . '/' . $path_info['basename'];
 							if (DIRECTORY_SEPARATOR === "\\")
