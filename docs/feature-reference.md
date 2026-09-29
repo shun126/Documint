@@ -28,6 +28,9 @@ The generated extension defaults to `html`. Set it per page with
 
 The leading dot is optional. Only ASCII letters and numbers are accepted, and
 links to the Markdown source are rewritten to use the selected extension.
+The `md` extension is rejected to protect the source, and `sitemap.xml` is
+reserved for the generated sitemap. Pages with other valid output extensions
+are included in that sitemap.
 
 ## Categories
 

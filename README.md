@@ -100,6 +100,8 @@ Use `{{title Page Title}}` to set the page title explicitly.
 Use `{{output_extension php}}` to change the generated file extension for an
 individual Markdown page. A leading dot is optional, and the value may contain
 ASCII letters and numbers only. When omitted, the extension is `html`.
+The value `md` is rejected to protect the Markdown source. The output path
+`sitemap.xml` is reserved for the generated sitemap.
 
 ```text
 {{title Dynamic Page}}
@@ -109,6 +111,7 @@ ASCII letters and numbers only. When omitted, the extension is `html`.
 This example generates `Dynamic Page` with the same template pipeline as usual,
 but writes it beside the Markdown source using the `.php` extension. Links from
 other Markdown pages to that source are rewritten to the generated `.php` path.
+Generated pages with other valid extensions are included in the sitemap.
 
 This takes priority over the first `# Heading` in the Markdown file.
 

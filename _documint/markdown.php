@@ -101,20 +101,16 @@ function rewrite_markdown_link_to_html($href, $sourcePath, $outputPath, $pages =
 	if (strpos($url['path'], '/') === 0)
 	{
 		$outputFileName = $path['filename'] . '.html';
-		$sourceStem = substr($url['path'], 0, -strlen($path['extension']) - 1);
+		$sourceUrlPath = normalize_file_path(rawurldecode($url['path']));
 		foreach ($pages as $page)
 		{
 			$pageNetworkPath = parse_url($page->getNetworkPath(), PHP_URL_PATH);
-			$pageStem = preg_replace('/\.[^.\/]+$/', '', $pageNetworkPath);
-			$sourceDirectoryMatches = $path['dirname'] === '/' ||
-				substr(dirname($pageNetworkPath), -strlen($path['dirname'])) === $path['dirname'];
-			if (
-				$pageStem === $sourceStem ||
-				substr($pageStem, -strlen($sourceStem)) === $sourceStem ||
-				(basename($page->getFilePath()) === $path['basename'] && $sourceDirectoryMatches)
-			)
+			$relativeSourcePath = $page->getSourceRelativePath();
+			$networkSourcePath = dirname($pageNetworkPath) . '/' . basename($page->getFilePath());
+			if (($relativeSourcePath !== NULL && normalize_file_path($relativeSourcePath) === $sourceUrlPath) ||
+				normalize_file_path($networkSourcePath) === $sourceUrlPath)
 			{
-				$outputFileName = basename($pageNetworkPath);
+				$outputFileName = rawurlencode(basename($pageNetworkPath));
 				break;
 			}
 		}
@@ -122,7 +118,7 @@ function rewrite_markdown_link_to_html($href, $sourcePath, $outputPath, $pages =
 		{
 			$outputFileName = 'index.html';
 		}
-		$linkPath = ($path['dirname'] === '/' ? '/' : $path['dirname'] . '/') . $outputFileName;
+		$linkPath = substr($url['path'], 0, strrpos($url['path'], '/') + 1) . $outputFileName;
 		if (array_key_exists('query', $url))
 			$linkPath .= '?' . $url['query'];
 		if (array_key_exists('fragment', $url))
@@ -131,7 +127,7 @@ function rewrite_markdown_link_to_html($href, $sourcePath, $outputPath, $pages =
 	}
 
 	$sourceDirectory = dirname($sourcePath);
-	$targetMarkdownPath = normalize_file_path($sourceDirectory . DIRECTORY_SEPARATOR . $url['path']);
+	$targetMarkdownPath = normalize_file_path($sourceDirectory . DIRECTORY_SEPARATOR . rawurldecode($url['path']));
 	$targetPathInfo = pathinfo($targetMarkdownPath);
 	$targetHtmlPath = $targetPathInfo['dirname'] . DIRECTORY_SEPARATOR . $targetPathInfo['filename'] . '.html';
 	foreach ($pages as $page)
@@ -142,7 +138,7 @@ function rewrite_markdown_link_to_html($href, $sourcePath, $outputPath, $pages =
 			break;
 		}
 	}
-	$linkPath = build_relative_link_path($outputPath, $targetHtmlPath);
+	$linkPath = implode('/', array_map('rawurlencode', explode('/', build_relative_link_path($outputPath, $targetHtmlPath))));
 
 	if (array_key_exists('query', $url))
 		$linkPath .= '?' . $url['query'];
@@ -392,6 +388,28 @@ function mask_inline_code($text)
 /**
  * Parse Markdown and return HTML.
  */
+function update_markdown_fence($line, &$fence)
+{
+	$line = rtrim($line, "\r\n");
+	if ($fence !== NULL)
+	{
+		$marker = preg_quote($fence['marker'], '/');
+		if (preg_match('/^ {0,3}' . $marker . '{' . $fence['length'] . ',}[ \t]*$/', $line))
+		{
+			$fence = NULL;
+			return true;
+		}
+		return false;
+	}
+
+	if (!preg_match('/^ {0,3}(`{3,}|~{3,})(.*)$/', $line, $match))
+		return false;
+	if ($match[1][0] === '`' && strpos($match[2], '`') !== false)
+		return false;
+	$fence = ['marker' => $match[1][0], 'length' => strlen($match[1])];
+	return true;
+}
+
 function parse_md($path, $pages, $outputPath = NULL)
 {
 	$markdown = open_input_file($path, 'Markdown file');
@@ -402,7 +420,7 @@ function parse_md($path, $pages, $outputPath = NULL)
 	$lineNumber = 0;
 	$htmlBlockStartLine = 0;
 	$inHtmlBlock = false;
-	$inFencedCodeBlock = false;
+	$fence = NULL;
 	while (($line = fgets($markdown)))
 	{
 		$lineNumber += 1;
@@ -425,13 +443,10 @@ function parse_md($path, $pages, $outputPath = NULL)
 				$html .= $line;
 			}
 		}
-		else if ($inFencedCodeBlock)
+		else if ($fence !== NULL)
 		{
 			$body .= $line;
-			if ($token === '```')
-			{
-				$inFencedCodeBlock = false;
-			}
+			update_markdown_fence($line, $fence);
 		}
 		else if ($token === '{{html}}')
 		{
@@ -505,9 +520,8 @@ function parse_md($path, $pages, $outputPath = NULL)
 			$head .= plantuml($markdown, "@enduml", $lineNumber);
 			$body = '';
 		}
-		else if (preg_match('/^```/', $token))
+		else if (update_markdown_fence($line, $fence))
 		{
-			$inFencedCodeBlock = true;
 			$body .= $line;
 		}
 		else
@@ -636,28 +650,20 @@ function get_output_extension_from_markdown($path)
 {
 	$markdown = open_input_file($path, 'Markdown file');
 	$extension = 'html';
-	$fenceMarker = NULL;
+	$fence = NULL;
 
 	while (($line = fgets($markdown)))
 	{
+		if ($fence !== NULL)
+		{
+			update_markdown_fence($line, $fence);
+			continue;
+		}
+		if (update_markdown_fence($line, $fence))
+		{
+			continue;
+		}
 		$line = trim($line);
-		if (preg_match('/^(`{3,}|~{3,})/', $line, $fenceMatch))
-		{
-			$marker = $fenceMatch[1][0];
-			if ($fenceMarker === NULL)
-			{
-				$fenceMarker = $marker;
-			}
-			else if ($fenceMarker === $marker)
-			{
-				$fenceMarker = NULL;
-			}
-			continue;
-		}
-		if ($fenceMarker !== NULL)
-		{
-			continue;
-		}
 		if (preg_match('/^\{\{output_extension\s+(.+)\}\}$/u', $line, $match))
 		{
 			$specifiedExtension = ltrim(trim($match[1]), '.');
@@ -669,6 +675,11 @@ function get_output_extension_from_markdown($path)
 				);
 			}
 			$extension = strtolower($specifiedExtension);
+			if ($extension === 'md')
+			{
+				fclose($markdown);
+				throw new RuntimeException("Output extension 'md' would overwrite the Markdown source. '" . $path . "'");
+			}
 			break;
 		}
 	}

@@ -105,11 +105,6 @@ function run_generation_mode($mode)
 	$rootUrl = $context['root_url'];
 	$normalizedMode = normalize_generation_mode($mode);
 	$pages = collect_markdown_pages($fileBasePath, $networkBasePath, $normalizedMode);
-	if ($normalizedMode === 'readme-index')
-	{
-		validate_unique_page_output_paths($pages);
-	}
-
 	generate_site_html($pages, $fileBasePath, $networkBasePath, $rootUrl);
 }
 ////////////////////////////////////////////////////////////////////////////////
